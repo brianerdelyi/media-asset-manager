@@ -1,10 +1,10 @@
 # Architecture Decision Records — Media Asset Manager
 
-> Version: 1.1
+> Version: 1.2
 > Status: Revised
 > Stage: 3 — Architecture & Technical Design
 > Last Updated: 2026-05-19
-> Change: Updated ADR-003 thumbnail format from JPEG to WebP. Added ADR-011 (Serialized Indexing), ADR-012 (FFmpeg Version Strategy), ADR-013 (Thumbnail Dimensions and Quality).
+> Change: Revised ADR-004 — removed file size pre-filter, simplified to always hash every file. Clarified one-sided hash comparison against stored fingerprint.
 
 ---
 
@@ -113,30 +113,49 @@ Store thumbnails as WebP files in a `thumbnails/` subdirectory co-located with `
 
 **Status:** Accepted
 **Date:** 2026-05-19
+**Revised:** 2026-05-19 — Removed file size pre-filter. Hash computed for every file always. Clarified one-sided comparison against stored fingerprint.
 
 ### Context
-Media assets (especially video files up to 25GB+) may exist on multiple drives. Duplicate detection must be reliable without making indexing impractically slow.
+Media assets (especially video files up to 25GB+) may exist on multiple drives. Duplicate detection must be reliable, work correctly when source drives are offline, and not make indexing impractically slow.
 
 ### Decision
-Compute a SHA256 fingerprint using:
+Compute a SHA256 partial hash for **every file** at index time, regardless of whether a potential duplicate exists:
 - Files > 128KB: SHA256(first 64KB + last 64KB)
 - Files ≤ 128KB: SHA256(entire file)
 
-Use file size as a pre-filter — only compute fingerprints for files that share a size with an existing indexed asset.
+Store the fingerprint in the `assets` table immediately. To detect duplicates, query the database for an existing asset with a matching fingerprint. Only the currently indexed file is ever read — the source drive of the existing asset does not need to be online.
+
+### Algorithm
+
+```
+For every file during indexing:
+    1. Compute partial hash of the current file (drive must be online — it is being indexed)
+    2. Query DB: SELECT id FROM assets WHERE fingerprint = ?
+    3. Match  → add new location record to existing asset
+    4. No match → insert new asset record with fingerprint stored
+```
 
 ### Rationale
-- Reads at most 128KB regardless of file size (e.g. 128KB from a 25GB video)
-- Reliable in practice for media files — camera-generated files have unique timestamps in headers
-- File size pre-filter avoids hashing most files entirely
-- Straightforward to implement in Rust
+- Hashing 128KB from a 25GB file takes ~1–2ms — negligible cost per file
+- Every asset always has a stored fingerprint from first index — no null fingerprint edge cases
+- Duplicate detection works correctly when the original drive is offline — only the stored fingerprint is needed for comparison, not a live re-read of the original file
+- Simpler than a two-step size pre-filter approach — one DB query per file instead of two
+- Reliable for real media files — camera-generated files embed unique timestamps in headers making collisions extremely unlikely
+
+### Why the File Size Pre-Filter Was Removed
+An earlier design used file size as a pre-filter to avoid hashing every file. This was removed because:
+- If hashing is skipped for files with no size match, those assets have no stored fingerprint
+- If a duplicate later appears, the original drive may be offline and cannot be re-hashed
+- The pre-filter added a second DB query per file and code complexity with no meaningful performance benefit given that the partial hash cost is ~1–2ms per file
 
 ### Tradeoffs
-- Theoretical false positive if two files share size AND first/last 64KB content (extremely unlikely for real media files)
-- Not suitable for detecting files that have been modified (intentional — modified files should be new assets)
+- Theoretical false positive if two files share the same first/last 64KB content (extremely unlikely for real camera-generated media files)
+- Not intended to detect modified files — a modified file produces a different fingerprint and is treated as a new asset (intentional behavior)
 
 ### Alternatives Rejected
 - **Full SHA256:** Impractical — 3–8 minutes per 25GB file
 - **Filename + size only:** Too many false positives (e.g. multiple files named `IMG_0001.MP4`)
+- **File size pre-filter + conditional hash:** Creates null fingerprint edge cases that break offline duplicate detection
 
 ---
 
@@ -393,4 +412,5 @@ Configurable thumbnail size (small / medium / large) is a backlog item for a fut
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-05-19 | Initial draft — ADR-001 through ADR-010 |
-| 1.1 | 2026-05-19 | Updated ADR-003 thumbnail format from JPEG to WebP; updated ADR-010 path example to .webp. Added ADR-011 (Serialized Indexing), ADR-012 (FFmpeg Version Strategy), ADR-013 (Thumbnail Dimensions and Quality). |
+| 1.1 | 2026-05-19 | Updated ADR-003 thumbnail format from JPEG to WebP. Updated ADR-010 path example to .webp. Added ADR-011 (Serialized Indexing), ADR-012 (FFmpeg Version Strategy), ADR-013 (Thumbnail Dimensions and Quality). |
+| 1.2 | 2026-05-19 | Revised ADR-004 — removed file size pre-filter; hash computed for every file always; clarified one-sided comparison against stored fingerprint; documented why pre-filter was removed. |

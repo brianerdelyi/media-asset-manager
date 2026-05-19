@@ -1,10 +1,10 @@
 # System Architecture — Media Asset Manager
 
-> Version: 1.1
+> Version: 1.2
 > Status: Revised
 > Stage: 3 — Architecture & Technical Design
 > Last Updated: 2026-05-19
-> Change: Updated thumbnail format to WebP. Updated FFmpeg sidecar strategy with version pinning and sources. Added serialized indexing constraint. Updated scalability section.
+> Change: Updated Indexer and Hasher component descriptions to reflect revised ADR-004 — hash computed for every file, file size pre-filter removed, one-sided fingerprint comparison against stored DB value.
 
 ---
 
@@ -88,9 +88,11 @@ Media Asset Manager is a local-first, offline-capable desktop application built 
 - If a job is already running, new requests return `INDEXING_IN_PROGRESS` error
 - Walks directory tree, filtering by supported file extensions
 - Calls Metadata Extractor for each file
-- Calls Hasher to compute content fingerprint
-- Checks database for existing asset with matching fingerprint
-- Creates new asset record or adds location record as appropriate
+- Calls Hasher to compute content fingerprint for every file
+- Queries database for existing asset with matching fingerprint
+- If match found: adds new location record to existing asset
+- If no match: creates new asset record with fingerprint stored
+- Only the currently indexed file is ever read — offline drives are never accessed during indexing
 - Emits `indexing:progress` events to frontend
 - Supports cancellation via async cancellation token
 - Supports incremental mode: skips files with unchanged size and modification date
@@ -104,12 +106,14 @@ Media Asset Manager is a local-first, offline-capable desktop application built 
 - Handles extraction failures gracefully — indexes file with available metadata only
 
 ### 3.4 Hasher
-**Responsibility:** Compute content fingerprint for duplicate detection.
+**Responsibility:** Compute content fingerprint for every indexed file.
 
-- For files > 128KB: SHA256 of first 64KB + last 64KB
+- Called for every file during indexing — no pre-filtering or skipping
+- For files > 128KB: SHA256 of first 64KB + last 64KB of the file
 - For files ≤ 128KB: SHA256 of entire file
-- File size used as pre-filter before hashing
-- Returns hex string stored in asset record
+- Reads at most 128KB regardless of file size (e.g. ~1–2ms for a 25GB video file)
+- Returns hex string stored in the asset record
+- Fingerprint is stored immediately on first index — every asset always has a fingerprint
 
 ### 3.5 Thumbnail Generator
 **Responsibility:** Generate and store thumbnail images.
@@ -319,7 +323,7 @@ Using the "essentials" static build keeps the binary to approximately 50–70MB 
 | Concern | Approach |
 |---|---|
 | 100K+ assets | SQLite with proper indexes; paginated queries |
-| Large video files | Partial hash (128KB read max regardless of file size) |
+| Large video files | Partial hash reads max 128KB regardless of file size |
 | Many drives | Drive status cached in memory; DB only queried on change |
 | Concurrent indexing | Single serialized indexing job (MVP); queue-based concurrency in backlog |
 | Thumbnail storage | One WebP per asset (~10–20KB avg); purge option available |
@@ -333,4 +337,5 @@ Using the "essentials" static build keeps the binary to approximately 50–70MB 
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-05-19 | Initial draft |
-| 1.1 | 2026-05-19 | Updated thumbnail format from JPEG to WebP (320px, quality 75). Updated FFmpeg sidecar section with version pinning strategy, trusted sources, and installer size note. Added serialized indexing constraint to Indexer component. Added WebP support note to cross-platform section. Updated scalability storage estimates for WebP. |
+| 1.1 | 2026-05-19 | Updated thumbnail format to WebP. Updated FFmpeg sidecar section with version pinning and sources. Added serialized indexing constraint. Updated scalability section. |
+| 1.2 | 2026-05-19 | Updated Indexer component — hash computed for every file, file size pre-filter removed, one-sided fingerprint comparison against stored DB value clarified. Updated Hasher component — removed pre-filter language, added clarity that every file is always hashed. |

@@ -1,10 +1,10 @@
 # Data Model — Media Asset Manager
 
-> Version: 1.1
+> Version: 1.2
 > Status: Revised
 > Stage: 3 — Architecture & Technical Design
 > Last Updated: 2026-05-19
-> Change: Updated thumbnail_path references from .jpg to .webp throughout.
+> Change: Updated Section 5.1 (Indexing a New File) to remove file size pre-filter step. Hash is now computed for every file. Updated thumbnail_path references to .webp.
 
 ---
 
@@ -60,7 +60,7 @@ One record per unique media file, identified by content fingerprint.
 ```sql
 CREATE TABLE assets (
     id              TEXT PRIMARY KEY,        -- UUID, generated at index time
-    fingerprint     TEXT NOT NULL UNIQUE,    -- SHA256 partial hash
+    fingerprint     TEXT NOT NULL UNIQUE,    -- SHA256 partial hash, always populated
     media_type      TEXT NOT NULL,           -- 'video' | 'image' | 'audio'
     file_extension  TEXT NOT NULL,           -- Lowercase, e.g. 'mp4', 'jpg'
     file_size       INTEGER NOT NULL,        -- Bytes
@@ -186,7 +186,7 @@ CREATE TABLE settings (
 ## 4. Indexes
 
 ```sql
--- Asset lookup by fingerprint (duplicate detection)
+-- Asset lookup by fingerprint (duplicate detection — primary lookup key)
 CREATE UNIQUE INDEX idx_assets_fingerprint ON assets(fingerprint);
 
 -- Asset filtering by media type
@@ -222,12 +222,13 @@ CREATE INDEX idx_markers_asset_id ON markers(asset_id);
 ## 5. Key Data Flows
 
 ### 5.1 Indexing a New File
-1. Compute file size
-2. Query: any existing asset with same file size?
-3. If yes: compute fingerprint; query: any existing asset with same fingerprint?
-4. If fingerprint match: insert new `locations` record for existing asset
-5. If no match: insert new `assets` record + new `locations` record
-6. If thumbnail enabled: queue thumbnail generation job
+1. Compute partial hash of the file (always — no pre-filtering)
+2. Query: `SELECT id FROM assets WHERE fingerprint = ?`
+3. If match found: insert new `locations` record for the existing asset
+4. If no match: insert new `assets` record with fingerprint + insert new `locations` record
+5. If thumbnail enabled: queue thumbnail generation job
+
+Note: only the file currently being indexed is read. Offline drives are never accessed during this process.
 
 ### 5.2 Tag Normalization
 - On tag create or apply: normalize input to lowercase, trimmed
@@ -265,4 +266,5 @@ CREATE INDEX idx_markers_asset_id ON markers(asset_id);
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-05-19 | Initial draft |
-| 1.1 | 2026-05-19 | Updated thumbnail_path comment in assets table from .jpg to .webp to reflect WebP format decision (ADR-003 update). |
+| 1.1 | 2026-05-19 | Updated thumbnail_path comment from .jpg to .webp |
+| 1.2 | 2026-05-19 | Updated Section 5.1 — removed file size pre-filter step from indexing flow; hash now computed for every file; added note that offline drives are never accessed during indexing. Updated fingerprint column comment to note it is always populated. Updated idx_assets_fingerprint comment to note it is the primary duplicate detection lookup key. |
