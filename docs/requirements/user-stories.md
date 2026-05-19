@@ -1,10 +1,10 @@
 # User Stories — Media Asset Manager
 
-> Version: 1.2
+> Version: 1.3
 > Status: Revised
 > Stage: 2 — Requirements & Scope
 > Last Updated: 2026-05-19
-> Change: Added Epic 10 (Duplicate Detection & Locations: US-29, US-30) and Epic 11 (Orphaned Assets: US-31, US-32). Updated US-03 for drive removal prompt. Updated US-19 for multi-location display.
+> Change: Updated US-09 to reflect Option B thumbnail setting — global default in Settings plus per-index override in confirmation dialog.
 
 ---
 
@@ -80,6 +80,8 @@
 
 **Acceptance Criteria:**
 - I can trigger indexing from the source management screen
+- A confirmation dialog shows the drive name and a thumbnail generation checkbox pre-filled with my global default
+- I can override the thumbnail setting for this indexing run without changing my global default
 - Indexing runs in the background without blocking the UI
 - A progress indicator shows files found, files indexed, and percentage complete
 - I am notified when indexing completes
@@ -126,16 +128,18 @@
 
 ## Epic 3 — Thumbnail Generation
 
-### US-09 — Enable thumbnail generation
+### US-09 — Configure and generate thumbnails
 **As a** content creator,
-**I want to** enable thumbnail generation in settings,
-**So that** I can visually browse my assets.
+**I want to** set a global thumbnail preference and optionally override it each time I index,
+**So that** I have control over thumbnail generation without having to change my settings every time.
 
 **Acceptance Criteria:**
-- A setting exists to toggle thumbnail generation on or off
-- When enabled, thumbnails are generated after indexing completes
+- A global setting in Settings lets me set thumbnail generation on or off as my default
+- When I trigger indexing, a confirmation dialog shows a thumbnail checkbox pre-filled with my global default
+- I can change the checkbox for that specific indexing run without affecting my global default
+- When enabled, thumbnails are generated after indexing completes, not during
 - Thumbnails are stored in the app data directory
-- Thumbnails are visible in the asset library view
+- Thumbnails are visible in the asset library view and detail view
 
 ---
 
@@ -465,4 +469,5 @@
 |---|---|---|
 | 1.0 | 2026-05-19 | Initial draft |
 | 1.1 | 2026-05-19 | Added Epic 8 (Video Playback) and Epic 9 (Markers). Updated US-19. |
-| 1.2 | 2026-05-19 | Added Epic 10 (Duplicate Detection: US-29, US-30) and Epic 11 (Orphaned Assets: US-31, US-32). Updated US-03 for drive removal prompt. Updated US-19 for multi-location display. Updated US-20 and US-21 for multi-location drive online check. Updated US-23 for orphaned asset statistics. Added terminology definitions. |
+| 1.2 | 2026-05-19 | Added Epic 10 (Duplicate Detection: US-29, US-30) and Epic 11 (Orphaned Assets: US-31, US-32). Updated US-03, US-19, US-20, US-21, US-23. Added terminology definitions. |
+| 1.3 | 2026-05-19 | Updated US-09 (thumbnail generation) to reflect Option B — global default setting plus per-index confirmation dialog override. Updated US-05 (index a drive) to include confirmation dialog acceptance criteria. |
