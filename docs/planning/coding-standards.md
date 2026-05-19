@@ -1,9 +1,10 @@
 # Coding Standards — Media Asset Manager
 
-> Version: 1.0
-> Status: Draft
+> Version: 1.1
+> Status: Revised
 > Stage: 4 — Implementation Planning
 > Last Updated: 2026-05-19
+> Change: Added Section 12 (Platform Abstraction Standard). Updated project structure to reflect macOS-only FFmpeg binaries for 1.0.0. Updated binaries folder note.
 
 ---
 
@@ -78,7 +79,8 @@ media-asset-manager/
 │   │   ├── drives/               # Drive management and watching
 │   │   │   ├── mod.rs
 │   │   │   ├── manager.rs
-│   │   │   └── watcher.rs
+│   │   │   ├── watcher.rs
+│   │   │   └── platform.rs       # Platform-specific implementations
 │   │   ├── library/              # Library and settings management
 │   │   │   ├── mod.rs
 │   │   │   └── manager.rs
@@ -90,10 +92,10 @@ media-asset-manager/
 │   │   │   └── marker.rs
 │   │   └── error.rs              # AppError type and error codes
 │   ├── binaries/                 # FFmpeg sidecar binaries
-│   │   ├── ffmpeg-macos-x86_64
-│   │   ├── ffmpeg-macos-arm64
-│   │   ├── ffmpeg-windows-x86_64.exe
-│   │   └── ffmpeg-linux-x86_64
+│   │   ├── ffmpeg-macos-x86_64   # v1.0.0 — macOS only
+│   │   ├── ffmpeg-macos-arm64    # v1.0.0 — macOS only
+│   │   │   # ffmpeg-windows-x86_64.exe — added when Windows port is planned
+│   │   │   # ffmpeg-linux-x86_64       — added when Linux port is planned
 │   └── tauri.conf.json
 ├── tests/                        # Integration and E2E tests
 ├── docs/                         # Project documentation
@@ -283,8 +285,80 @@ If a file passes this check (it is new or its metadata has changed), it proceeds
 
 ---
 
-## 12. Document History
+## 12. Platform Abstraction Standard
+
+Version 1.0.0 targets macOS only. However, all platform-specific code must be written behind clean abstractions from the start so that Windows and Linux porting is additive — implementing a new platform branch without touching existing macOS code.
+
+### Rule
+All platform-specific logic must live in `src-tauri/src/drives/platform.rs` behind `#[cfg(target_os)]` conditional compilation blocks. No platform-specific logic in shared modules.
+
+### Required Pattern
+
+```rust
+// src-tauri/src/drives/platform.rs
+
+/// Resolve a platform-specific unique identifier for a drive at the given path.
+/// Returns a normalized UUID string stored in the database.
+pub fn get_drive_uuid(path: &std::path::Path) -> Result<String, crate::error::AppError> {
+    #[cfg(target_os = "macos")]
+    {
+        macos::get_volume_uuid(path)
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // Not implemented in v1.0.0 — planned for Windows port
+        Err(crate::error::AppError::NotImplemented(
+            "Windows drive UUID resolution not yet implemented".to_string()
+        ))
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Not implemented in v1.0.0 — planned for Linux port
+        Err(crate::error::AppError::NotImplemented(
+            "Linux drive UUID resolution not yet implemented".to_string()
+        ))
+    }
+}
+
+/// Open a file with the OS default application.
+pub fn open_with_default_app(path: &std::path::Path) -> Result<(), crate::error::AppError> {
+    #[cfg(target_os = "macos")]
+    {
+        macos::open_with_default_app(path)
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        Err(crate::error::AppError::NotImplemented(
+            "Windows open not yet implemented".to_string()
+        ))
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        Err(crate::error::AppError::NotImplemented(
+            "Linux open not yet implemented".to_string()
+        ))
+    }
+}
+```
+
+### Platform Functions Required in v1.0.0 (macOS)
+- `get_drive_uuid(path)` — Volume UUID via IOKit/diskutil
+- `open_with_default_app(path)` — `open` command
+- `reveal_in_file_manager(path)` — `open -R` (reveal in Finder)
+
+### Platform Functions Stubbed for Future Ports
+- Windows: `GetVolumeInformation`, `ShellExecute`, Explorer reveal
+- Linux: `/dev/disk/by-uuid/` UUID, `xdg-open`, Nautilus/Thunar reveal
+
+---
+
+## 13. Document History
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0 | 2026-05-19 | Initial draft created during SDLC Stage 4 |
+| 1.0 | 2026-05-19 | Initial draft |
+| 1.1 | 2026-05-19 | Added Section 12 (Platform Abstraction Standard) with required pattern, macOS implementations, and stubbed Windows/Linux branches. Updated project structure to show macOS-only FFmpeg binaries for v1.0.0 and comments for future platform binaries. Added platform.rs to drives/ folder structure. |
