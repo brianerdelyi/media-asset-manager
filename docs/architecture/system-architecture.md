@@ -1,9 +1,10 @@
 # System Architecture — Media Asset Manager
 
-> Version: 1.0
-> Status: Draft
+> Version: 1.1
+> Status: Revised
 > Stage: 3 — Architecture & Technical Design
 > Last Updated: 2026-05-19
+> Change: Updated thumbnail format to WebP. Updated FFmpeg sidecar strategy with version pinning and sources. Added serialized indexing constraint. Updated scalability section.
 
 ---
 
@@ -63,7 +64,7 @@ Media Asset Manager is a local-first, offline-capable desktop application built 
 
 ### 2.4 Thumbnails Directory
 - Subfolder `thumbnails/` co-located with `library.db`
-- Named by asset UUID: `{asset_uuid}.jpg`
+- Named by asset UUID: `{asset_uuid}.webp`
 - Referenced by relative path in database
 - Resolved to absolute path at runtime using library root
 
@@ -83,6 +84,8 @@ Media Asset Manager is a local-first, offline-capable desktop application built 
 **Responsibility:** Scan registered drives and populate the asset index.
 
 - Runs on a Tokio background thread — never blocks UI
+- Only one indexing job runs at a time — jobs are serialized
+- If a job is already running, new requests return `INDEXING_IN_PROGRESS` error
 - Walks directory tree, filtering by supported file extensions
 - Calls Metadata Extractor for each file
 - Calls Hasher to compute content fingerprint
@@ -112,10 +115,11 @@ Media Asset Manager is a local-first, offline-capable desktop application built 
 **Responsibility:** Generate and store thumbnail images.
 
 - Runs after indexing completes on a separate Tokio task
-- Video: uses FFmpeg to extract frame at 10% of duration
-- Image: resizes using image processing library
-- Saves as JPEG to `thumbnails/{asset_uuid}.jpg`
-- Stores relative path `thumbnails/{asset_uuid}.jpg` in database
+- Video: uses FFmpeg to extract frame at 10% of duration, output as WebP
+- Image: resizes and converts to WebP using FFmpeg
+- Fixed settings: 320px longest edge, WebP lossy quality 75
+- Saves to `thumbnails/{asset_uuid}.webp`
+- Stores relative path `thumbnails/{asset_uuid}.webp` in database
 - Respects per-index enable/disable flag passed from frontend
 - Emits `thumbnails:progress` events to frontend
 
@@ -204,9 +208,26 @@ Cancellation is handled via `tokio_util::sync::CancellationToken` passed into ba
 
 ## 7. FFmpeg Sidecar Strategy
 
-FFmpeg is bundled as a platform-specific binary sidecar:
+FFmpeg is bundled as a platform-specific static binary sidecar. Static builds have no runtime dependencies and behave consistently across all user machines.
 
-| Platform | Binary |
+### Version Strategy
+- Pin to latest stable FFmpeg release at build time (e.g. `7.1`)
+- Document pinned version in project
+- Update FFmpeg version deliberately with each app release — never automatically
+- Test new FFmpeg version before shipping
+
+### Trusted Static Build Sources
+
+| Platform | Source |
+|---|---|
+| macOS (x86_64) | evermeet.cx/ffmpeg |
+| macOS (ARM64) | evermeet.cx/ffmpeg |
+| Windows (x86_64) | gyan.dev/ffmpeg/builds — "release essentials" build |
+| Linux (x86_64) | johnvansickle.com/ffmpeg — static builds |
+
+### Binary Naming Convention
+
+| Platform | Binary name |
 |---|---|
 | macOS (x86_64) | `ffmpeg-macos-x86_64` |
 | macOS (ARM64) | `ffmpeg-macos-arm64` |
@@ -215,10 +236,17 @@ FFmpeg is bundled as a platform-specific binary sidecar:
 
 Tauri's sidecar API handles binary selection and execution. FFmpeg is called via command invocation — not linked as a library. This avoids GPL licensing complications.
 
-FFmpeg is used for:
-- Video metadata extraction (duration, codec, frame rate, resolution)
-- Audio metadata extraction (duration, codec, sample rate)
-- Video thumbnail frame extraction
+### FFmpeg Usage
+
+| Purpose | Notes |
+|---|---|
+| Video metadata extraction | duration, codec, frame rate, resolution |
+| Audio metadata extraction | duration, codec, sample rate |
+| Video thumbnail frame extraction | frame at 10% duration, output WebP |
+| Image thumbnail generation | resize to 320px, output WebP |
+
+### Installer Size
+Using the "essentials" static build keeps the binary to approximately 50–70MB per platform. This is standard and expected for a media application.
 
 ---
 
@@ -240,6 +268,7 @@ FFmpeg is used for:
 | Database error | Log, surface to user, halt operation |
 | Drive not accessible | Mark offline, surface to user |
 | FFmpeg not found | Surface to user with actionable message |
+| Indexing already in progress | Return INDEXING_IN_PROGRESS error to frontend |
 
 ### 8.3 User-Facing Errors
 - Errors are displayed in a non-blocking notification system
@@ -281,6 +310,7 @@ FFmpeg is used for:
 | Webview differences | Feature-detect video format support at runtime; show fallback as needed |
 | File system events | `notify` crate abstracts OS-specific event APIs |
 | Binary installers | Tauri bundler produces .dmg (macOS), .msi/.exe (Windows), .deb/.AppImage (Linux) |
+| WebP thumbnails | Supported natively in all three platform webviews used by Tauri |
 
 ---
 
@@ -291,9 +321,10 @@ FFmpeg is used for:
 | 100K+ assets | SQLite with proper indexes; paginated queries |
 | Large video files | Partial hash (128KB read max regardless of file size) |
 | Many drives | Drive status cached in memory; DB only queried on change |
-| Concurrent indexing | Single indexing job at a time (MVP); queue for future |
-| Thumbnail storage | One JPEG per asset; purge option available |
+| Concurrent indexing | Single serialized indexing job (MVP); queue-based concurrency in backlog |
+| Thumbnail storage | One WebP per asset (~10–20KB avg); purge option available |
 | Search performance | Compound indexes on frequently filtered columns |
+| Storage at scale | 100K assets × ~15KB = ~1.5GB thumbnails; 500K assets × ~15KB = ~7.5GB |
 
 ---
 
@@ -301,4 +332,5 @@ FFmpeg is used for:
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0 | 2026-05-19 | Initial draft created during SDLC Stage 3 |
+| 1.0 | 2026-05-19 | Initial draft |
+| 1.1 | 2026-05-19 | Updated thumbnail format from JPEG to WebP (320px, quality 75). Updated FFmpeg sidecar section with version pinning strategy, trusted sources, and installer size note. Added serialized indexing constraint to Indexer component. Added WebP support note to cross-platform section. Updated scalability storage estimates for WebP. |

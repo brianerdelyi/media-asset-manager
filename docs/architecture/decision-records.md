@@ -1,9 +1,10 @@
 # Architecture Decision Records — Media Asset Manager
 
-> Version: 1.0
-> Status: Draft
+> Version: 1.1
+> Status: Revised
 > Stage: 3 — Architecture & Technical Design
 > Last Updated: 2026-05-19
+> Change: Updated ADR-003 thumbnail format from JPEG to WebP. Added ADR-011 (Serialized Indexing), ADR-012 (FFmpeg Version Strategy), ADR-013 (Thumbnail Dimensions and Quality).
 
 ---
 
@@ -68,30 +69,43 @@ Use SQLite via `rusqlite` in the Rust backend. Enable WAL (Write-Ahead Logging) 
 
 ---
 
-## ADR-003 — Thumbnails Stored as Files on Disk
+## ADR-003 — Thumbnails Stored as WebP Files on Disk
 
 **Status:** Accepted
 **Date:** 2026-05-19
+**Revised:** 2026-05-19 — Updated thumbnail format from JPEG to WebP
 
 ### Context
-Thumbnail images must be generated and displayed for video and image assets. The storage location affects database size, query performance, and portability.
+Thumbnail images must be generated and displayed for video and image assets. The storage location and format affects database size, query performance, storage efficiency, and portability.
 
 ### Decision
-Store thumbnails as JPEG files in a `thumbnails/` subdirectory co-located with `library.db`. Store relative paths in the database.
+Store thumbnails as WebP files in a `thumbnails/` subdirectory co-located with `library.db`. Store relative paths in the database. Fixed settings: 320px longest edge, lossy WebP quality 75.
 
 ### Rationale
-- Keeps SQLite database lean and fast
+- WebP produces ~30–50% smaller files than JPEG at equivalent visual quality for photographic content
+- WebP is natively supported in all three platform webviews used by Tauri (Chromium-based on Windows, WebKit on macOS, WebKitGTK on Linux)
+- FFmpeg generates WebP natively — no additional tooling required
 - Relative paths maintain portability — the library folder can be moved without breaking references
 - Tauri can serve local files directly to the webview via asset protocol
 - Thumbnails can be purged independently without affecting the database
-- Each library has its own `thumbnails/` folder, naturally isolating thumbnails when multiple libraries are supported in future
+- Each library has its own `thumbnails/` folder, naturally isolating thumbnails across libraries in future
+
+### Storage Estimates
+| Library Size | WebP (~15KB avg) |
+|---|---|
+| 10,000 assets | ~150MB |
+| 100,000 assets | ~1.5GB |
+| 500,000 assets | ~7.5GB |
 
 ### Tradeoffs
 - Two artifacts to manage (database + thumbnails folder)
-- Manual deletion of thumbnails folder creates orphaned path references in DB (mitigated by placeholder fallback and future regeneration feature)
+- Manual deletion of thumbnails folder creates stale path references in DB (mitigated by placeholder fallback)
 
 ### Alternatives Rejected
-- **SQLite BLOBs:** Acceptable for small libraries; poor performance at 100K+ assets; complex Tauri bridge rendering pipeline
+- **JPEG:** ~2x larger than WebP for equivalent quality; no advantage for this use case
+- **PNG:** Lossless compression performs poorly on photographic content; much larger files
+- **SQLite BLOBs:** Poor performance at 100K+ assets; complex Tauri bridge rendering pipeline
+- **HEIC:** Excellent compression but poor support on Windows and Linux webviews
 
 ---
 
@@ -218,7 +232,7 @@ Bundle FFmpeg as a platform-specific binary sidecar invoked via Tauri's sidecar 
 - No runtime dependency on the user having FFmpeg installed
 
 ### Tradeoffs
-- Increases installer size (FFmpeg binary is ~50–80MB per platform)
+- Increases installer size (~50–70MB per platform using essentials static build)
 - Sidecar process startup adds minor latency per extraction
 - Must keep FFmpeg version pinned and updated with app releases
 
@@ -266,7 +280,7 @@ Use Zustand for all frontend state management.
 Users may move their library folder to a different location, machine, or drive. Absolute thumbnail paths would break on relocation.
 
 ### Decision
-Store relative thumbnail paths in the database (e.g. `thumbnails/uuid.jpg`). Resolve to absolute paths at runtime using the library root directory as the base.
+Store relative thumbnail paths in the database (e.g. `thumbnails/uuid.webp`). Resolve to absolute paths at runtime using the library root directory as the base.
 
 ### Rationale
 - Library folder is portable — copy and move without breaking thumbnail references
@@ -280,8 +294,103 @@ Store relative thumbnail paths in the database (e.g. `thumbnails/uuid.jpg`). Res
 
 ---
 
+## ADR-011 — Serialized Indexing (One Job at a Time)
+
+**Status:** Accepted
+**Date:** 2026-05-19
+
+### Context
+The app must decide whether to allow concurrent indexing jobs across multiple drives simultaneously or serialize them.
+
+### Decision
+Only one indexing job may run at a time. If a second job is requested while one is running, the backend returns `INDEXING_IN_PROGRESS`. The user must wait or cancel the current job before starting a new one.
+
+### Rationale
+- Indexing is heavily I/O bound; concurrent jobs compete for disk bandwidth and often make both slower
+- Significantly simpler cancellation, progress reporting, and error handling
+- Content creators typically connect and index one drive at a time in practice
+- Reduces risk of database contention during write-heavy indexing operations
+
+### Tradeoffs
+- Users with multiple drives connected simultaneously cannot index in parallel
+- Slight inconvenience if user wants to index a second drive immediately
+
+### Future Enhancement
+Queue-based concurrent indexing is a backlog item for a future version once usage patterns are understood.
+
+---
+
+## ADR-012 — FFmpeg Version Pinning Strategy
+
+**Status:** Accepted
+**Date:** 2026-05-19
+
+### Context
+FFmpeg must be bundled as a static binary sidecar. A version strategy is needed to ensure consistency, reliability, and maintainability.
+
+### Decision
+Pin to the latest stable FFmpeg release at build time. Update the pinned version deliberately with each app release. Use trusted static build sources per platform:
+
+| Platform | Source |
+|---|---|
+| macOS (x86_64 + ARM64) | evermeet.cx/ffmpeg |
+| Windows (x86_64) | gyan.dev/ffmpeg/builds — "release essentials" |
+| Linux (x86_64) | johnvansickle.com/ffmpeg — static builds |
+
+### Rationale
+- Latest stable release has the best format support and bug fixes
+- Static builds have no runtime dependencies — consistent behavior across all user machines
+- Pinning prevents unexpected behavior from automatic updates
+- Trusted community sources provide well-tested static builds for all platforms
+- "Essentials" build on Windows reduces installer size to ~50–70MB
+
+### Tradeoffs
+- Requires deliberate FFmpeg update process with each release
+- Developer must verify new FFmpeg version before shipping
+- Pinned version may lag behind latest for a release cycle
+
+---
+
+## ADR-013 — Thumbnail Dimensions and Quality
+
+**Status:** Accepted
+**Date:** 2026-05-19
+
+### Context
+Thumbnail images need fixed dimensions and quality settings for MVP. These settings affect storage size, visual quality at render time, and implementation complexity.
+
+### Decision
+- Format: WebP lossy
+- Max dimension: 320px on longest edge (aspect ratio preserved)
+- Quality: 75%
+- Settings are fixed for version 1.0.0 — not user-configurable
+
+### Rationale
+- 320px provides crisp rendering at standard grid thumbnail sizes (150–200px) on HiDPI/Retina displays at 2x
+- WebP quality 75 is visually indistinguishable from higher quality at thumbnail sizes
+- Fixed settings eliminate configuration complexity for MVP
+- Average file size ~15KB per thumbnail — acceptable at scale
+- FFmpeg WebP output flag: `-vf scale=320:-1 -quality 75`
+
+### Storage Estimates
+| Assets | Avg Size | Total |
+|---|---|---|
+| 10,000 | 15KB | ~150MB |
+| 100,000 | 15KB | ~1.5GB |
+| 500,000 | 15KB | ~7.5GB |
+
+### Tradeoffs
+- No user control over thumbnail quality or size in MVP
+- Users with very large monitors may prefer larger thumbnails (mitigated by backlog item)
+
+### Future Enhancement
+Configurable thumbnail size (small / medium / large) is a backlog item for a future version.
+
+---
+
 ## Document History
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0 | 2026-05-19 | Initial draft — ADR-001 through ADR-010 created during SDLC Stage 3 |
+| 1.0 | 2026-05-19 | Initial draft — ADR-001 through ADR-010 |
+| 1.1 | 2026-05-19 | Updated ADR-003 thumbnail format from JPEG to WebP; updated ADR-010 path example to .webp. Added ADR-011 (Serialized Indexing), ADR-012 (FFmpeg Version Strategy), ADR-013 (Thumbnail Dimensions and Quality). |

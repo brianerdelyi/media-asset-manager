@@ -1,9 +1,10 @@
 # API Design — Media Asset Manager
 
-> Version: 1.0
-> Status: Draft
+> Version: 1.1
+> Status: Revised
 > Stage: 3 — Architecture & Technical Design
 > Last Updated: 2026-05-19
+> Change: Updated thumbnail_path references from .jpg to .webp. Added INDEXING_IN_PROGRESS handling note to index_start command.
 
 ---
 
@@ -157,7 +158,7 @@ Update the friendly name of a registered drive.
 ## 4. Indexing Commands
 
 ### `index_start`
-Start indexing a registered drive.
+Start indexing a registered drive. Only one indexing job may run at a time. Returns `INDEXING_IN_PROGRESS` error if a job is already running.
 
 **Input:**
 ```json
@@ -170,6 +171,15 @@ Start indexing a registered drive.
 **Output:**
 ```json
 { "job_id": "uuid" }
+```
+**Error (if job already running):**
+```json
+{
+  "error": {
+    "code": "INDEXING_IN_PROGRESS",
+    "message": "Indexing is already in progress on [Drive Name]. Please wait or cancel the current job."
+  }
+}
 ```
 
 ---
@@ -251,7 +261,7 @@ Search and filter the asset index.
       "width": 3840,
       "height": 2160,
       "created_at_fs": 1700000000,
-      "thumbnail_path": "thumbnails/uuid.jpg",
+      "thumbnail_path": "thumbnails/uuid.webp",
       "is_orphaned": false,
       "primary_drive_name": "Footage Drive 01",
       "primary_drive_online": true,
@@ -290,7 +300,7 @@ Get full detail for a single asset including locations, tags, and markers.
   "frame_rate": 29.97,
   "created_at_fs": 1700000000,
   "modified_at_fs": 1700000100,
-  "thumbnail_path": "thumbnails/uuid.jpg",
+  "thumbnail_path": "thumbnails/uuid.webp",
   "is_orphaned": false,
   "locations": [
     {
@@ -547,7 +557,7 @@ Get library statistics.
   "orphaned_assets": 12,
   "missing_files": 3,
   "database_size_bytes": 52428800,
-  "thumbnails_size_bytes": 104857600,
+  "thumbnails_size_bytes": 72351744,
   "thumbnails_count": 4200
 }
 ```
@@ -561,7 +571,7 @@ Delete all thumbnail files.
 
 **Output:**
 ```json
-{ "deleted_count": 4200, "freed_bytes": 104857600 }
+{ "deleted_count": 4200, "freed_bytes": 72351744 }
 ```
 
 ---
@@ -617,4 +627,5 @@ Bulk delete all orphaned assets.
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0 | 2026-05-19 | Initial draft created during SDLC Stage 3 |
+| 1.0 | 2026-05-19 | Initial draft |
+| 1.1 | 2026-05-19 | Updated thumbnail_path in asset_search and asset_get responses from .jpg to .webp. Added INDEXING_IN_PROGRESS error response to index_start command. Updated thumbnails_size_bytes estimates to reflect WebP file sizes. |

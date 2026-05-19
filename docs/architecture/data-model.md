@@ -1,9 +1,10 @@
 # Data Model — Media Asset Manager
 
-> Version: 1.0
-> Status: Draft
+> Version: 1.1
+> Status: Revised
 > Stage: 3 — Architecture & Technical Design
 > Last Updated: 2026-05-19
+> Change: Updated thumbnail_path references from .jpg to .webp throughout.
 
 ---
 
@@ -71,7 +72,7 @@ CREATE TABLE assets (
     sample_rate     INTEGER,                 -- Hz, audio only
     created_at_fs   INTEGER,                 -- File creation date (from filesystem)
     modified_at_fs  INTEGER,                 -- File modification date (from filesystem)
-    thumbnail_path  TEXT,                    -- Relative path e.g. 'thumbnails/uuid.jpg'
+    thumbnail_path  TEXT,                    -- Relative path e.g. 'thumbnails/uuid.webp'
     is_orphaned     INTEGER NOT NULL DEFAULT 0, -- 1 = no remaining locations
     indexed_at      INTEGER NOT NULL,        -- Unix timestamp
     updated_at      INTEGER NOT NULL         -- Unix timestamp
@@ -263,4 +264,5 @@ CREATE INDEX idx_markers_asset_id ON markers(asset_id);
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0 | 2026-05-19 | Initial draft created during SDLC Stage 3 |
+| 1.0 | 2026-05-19 | Initial draft |
+| 1.1 | 2026-05-19 | Updated thumbnail_path comment in assets table from .jpg to .webp to reflect WebP format decision (ADR-003 update). |
