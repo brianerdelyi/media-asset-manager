@@ -1,10 +1,20 @@
 # User Stories — Media Asset Manager
 
-> Version: 1.1
+> Version: 1.2
 > Status: Revised
 > Stage: 2 — Requirements & Scope
 > Last Updated: 2026-05-19
-> Change: Added Epic 8 (Video Playback) and Epic 9 (Markers) with US-24 through US-28. Updated version terminology to SemVer and backlog conventions.
+> Change: Added Epic 10 (Duplicate Detection & Locations: US-29, US-30) and Epic 11 (Orphaned Assets: US-31, US-32). Updated US-03 for drive removal prompt. Updated US-19 for multi-location display.
+
+---
+
+## Terminology
+
+| Term | Definition |
+|---|---|
+| **Orphaned asset** | An indexed asset that has no remaining location on any registered drive |
+| **Offline asset** | An asset whose drive is registered but currently disconnected |
+| **Missing file** | A file that was indexed but is no longer found at its path on a reconnected drive |
 
 ---
 
@@ -43,8 +53,9 @@
 **Acceptance Criteria:**
 - I can select a source and choose to remove it
 - The app asks for confirmation before removing
+- If assets would become orphaned, the app tells me how many and asks whether to keep or delete them
 - After removal, the source no longer appears in the list
-- I am informed whether indexed assets will be retained or removed
+- Assets with remaining locations on other drives are unaffected
 
 ---
 
@@ -108,7 +119,7 @@
 
 **Acceptance Criteria:**
 - When a registered drive is reconnected and re-indexed, missing files are flagged
-- Missing assets remain in the index but are visually marked as missing
+- Missing assets remain in the index but are visually marked as missing files
 - I am notified of how many files were found to be missing
 
 ---
@@ -191,7 +202,7 @@
 
 **Acceptance Criteria:**
 - A search field is visible in the main library view
-- Typing in the search field filters results in real time or on submit
+- Search is triggered by pressing Enter or clicking a Search button
 - Results match partial filenames
 - Search works when the source drive is offline
 
@@ -250,14 +261,15 @@
 ### US-19 — View asset details
 **As a** content creator,
 **I want to** open a detail view for any asset,
-**So that** I can see its full metadata, tags, and markers.
+**So that** I can see its full metadata, tags, locations, and markers.
 
 **Acceptance Criteria:**
 - Clicking an asset opens a detail view
 - The detail view shows all extracted metadata
 - The detail view shows all applied tags
+- The detail view shows all known locations with drive name and online/offline status
 - The detail view shows all markers associated with the asset
-- The detail view shows the source drive name and status
+- The detail view clearly indicates if the asset is orphaned
 
 ---
 
@@ -267,9 +279,9 @@
 **So that** I can access it without manually navigating to it.
 
 **Acceptance Criteria:**
-- An "Open" button is available in the detail view when the drive is online
+- An "Open" button is available in the detail view when at least one drive is online
 - Clicking Open launches the file in the OS default application
-- The button is disabled or hidden when the drive is offline
+- The button is disabled or hidden when all drives are offline or the asset is orphaned
 
 ---
 
@@ -279,9 +291,9 @@
 **So that** I can access it directly in Finder, Explorer, or Nautilus.
 
 **Acceptance Criteria:**
-- A "Show in Finder / Explorer" button is available when the drive is online
+- A "Show in Finder / Explorer" button is available when at least one drive is online
 - Clicking it opens the OS file manager with the file highlighted
-- The button is disabled or hidden when the drive is offline
+- The button is disabled or hidden when all drives are offline or the asset is orphaned
 
 ---
 
@@ -308,6 +320,8 @@
 **Acceptance Criteria:**
 - Statistics show total number of indexed assets
 - Statistics show total number of registered sources
+- Statistics show total number of locations
+- Statistics show count of orphaned assets
 - Statistics show current database size on disk
 
 ---
@@ -323,7 +337,7 @@
 - A video player is visible in the asset detail view for supported video formats
 - I can play and pause the video using player controls
 - The player displays the current time and total duration
-- The player is only available when the source drive is online
+- The player is only available when at least one source drive is online
 - For unsupported formats, an "Open in external player" button is shown instead
 
 ---
@@ -386,9 +400,69 @@
 
 ---
 
+## Epic 10 — Duplicate Detection & Locations
+
+### US-29 — Automatic duplicate detection during indexing
+**As a** content creator,
+**I want to** the app to automatically detect when the same media file exists in multiple locations,
+**So that** my library has one entry per unique asset regardless of how many copies exist across my drives.
+
+**Acceptance Criteria:**
+- When indexing detects a file with a matching fingerprint to an existing asset, no duplicate asset record is created
+- A new location record is added to the existing asset instead
+- The deduplication is transparent — I do not need to take any action
+- Duplicate detection works across all registered drives and folders
+
+---
+
+### US-30 — View all locations for an asset
+**As a** content creator,
+**I want to** see all the locations where a media asset exists,
+**So that** I know which drives contain a copy of that file.
+
+**Acceptance Criteria:**
+- The asset detail view lists all known locations for the asset
+- Each location shows the drive name and its online/offline status
+- Each location shows the full file path on that drive
+- If only one location exists, it is still displayed clearly
+
+---
+
+## Epic 11 — Orphaned Assets
+
+### US-31 — Handle orphaned assets when removing a drive
+**As a** content creator,
+**I want to** be informed about assets that will become orphaned when I remove a drive,
+**So that** I can decide whether to keep or delete them before the drive is removed.
+
+**Acceptance Criteria:**
+- When I remove a drive, the app tells me how many assets would become orphaned
+- I am prompted to keep the orphaned assets or delete them
+- If I choose to keep them, they remain in the library marked as orphaned
+- If I choose to delete them, their records, tags, and markers are permanently removed
+- Assets with remaining locations on other drives are not affected
+
+---
+
+### US-32 — Manage orphaned assets
+**As a** content creator,
+**I want to** view and clean up orphaned assets in my library,
+**So that** I can keep my library tidy over time.
+
+**Acceptance Criteria:**
+- I can filter the library to show only orphaned assets
+- Each orphaned asset is clearly marked in the library and detail view
+- I can manually delete individual orphaned assets from the detail view
+- I can bulk delete all orphaned assets from the settings screen
+- Orphaned assets are still searchable and their tags and markers are intact
+- No playback or file access is available for orphaned assets
+
+---
+
 ## Document History
 
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-05-19 | Initial draft |
-| 1.1 | 2026-05-19 | Added Epic 8 (Video Playback: US-24, US-25) and Epic 9 (Markers: US-26, US-27, US-28). Updated US-19 to include markers in detail view. Updated version terminology to SemVer and backlog conventions. |
+| 1.1 | 2026-05-19 | Added Epic 8 (Video Playback) and Epic 9 (Markers). Updated US-19. |
+| 1.2 | 2026-05-19 | Added Epic 10 (Duplicate Detection: US-29, US-30) and Epic 11 (Orphaned Assets: US-31, US-32). Updated US-03 for drive removal prompt. Updated US-19 for multi-location display. Updated US-20 and US-21 for multi-location drive online check. Updated US-23 for orphaned asset statistics. Added terminology definitions. |
