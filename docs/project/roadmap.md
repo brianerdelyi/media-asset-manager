@@ -1,93 +1,138 @@
 # Project Roadmap — Media Asset Manager
 
-> Version: 1.1
-> Status: Draft
+> Version: 1.2
+> Status: Revised
 > Stage: 1 — Project Definition
 > Last Updated: 2026-05-19
+> Change: Restructured from named phases to SemVer versions. All post-MVP features moved to backlog with version TBD. Added video playback, markers, and lossless clip export. Updated SDLC phase terminology.
 
 ---
 
 ## Roadmap Overview
 
-This roadmap reflects a solo developer using AI-assisted tooling. Timelines are indicative and will be refined in Stage 4 (Implementation Planning).
+This roadmap reflects a solo developer using AI-assisted tooling. The MVP targets version `1.0.0`. All post-MVP features are captured in the backlog with no assigned version. Versions will be assigned at planning time for each future release.
 
 ---
 
-## Phase 1 — MVP (Target: v1.0)
+## Version 0.x.0 — Development Builds (Pre-Release)
 
-**Goal:** Functional offline media indexer with tagging and search.
+Iterative development builds produced during SDLC Phases 5–7. Not released to end users.
 
-| Milestone | Description | SDLC Stage |
-|---|---|---|
-| M1 | Project definition and requirements locked | Stage 1–2 |
-| M2 | Architecture and technical design approved | Stage 3 |
-| M3 | Implementation plan and task breakdown complete | Stage 4 |
-| M4 | Core indexing engine working (background, incremental) | Stage 5 |
-| M5 | Tagging and search functional | Stage 5 |
-| M6 | Thumbnail generation working (toggleable) | Stage 5 |
-| M7 | UI complete (library view, detail view, search, settings) | Stage 5 |
-| M8 | Cross-platform testing complete | Stage 6 |
-| M9 | Installer build for Windows, macOS, Linux | Stage 7 |
-| M10 | v1.0 released | Stage 7 |
+| Build | Description |
+|---|---|
+| `0.1.0` | Project scaffolding, Tauri + React skeleton, SQLite connection |
+| `0.2.0` | Drive registration and basic indexing |
+| `0.3.0` | Metadata extraction and library view |
+| `0.4.0` | Tagging and search |
+| `0.5.0` | Thumbnail generation |
+| `0.6.0` | Video playback and markers |
+| `0.7.0` | Settings, library stats, full UI |
+| `0.8.0` | Cross-platform testing and bug fixes |
+| `0.9.0` | Release candidate |
 
 ---
 
-## Phase 2 — Enhanced Usability (Target: v1.x)
+## Version 1.0.0 — MVP
+
+**Goal:** Functional offline media indexer with tagging, search, in-app playback, and markers.
 
 | Feature | Description |
 |---|---|
-| Batch tagging | Apply tags to multiple selected assets at once |
-| Collections / Albums | Group assets into named collections |
-| Duplicate detection | Flag likely duplicate files across drives |
-| Improved search | Boolean filters, saved searches |
-| Hierarchical tags | Parent/child tag relationships (e.g. client/acme/project) |
-| Performance improvements | Faster indexing, optimized incremental re-index |
-| Multiple library support | Allow user to create and switch between separate libraries |
+| Drive/folder registration | Register and manage media sources |
+| Background indexing | Index video, image, and audio files with progress display |
+| Incremental re-indexing | Only process new or changed files on re-index |
+| Metadata extraction | Filename, size, duration, resolution, codec, date |
+| Flat tagging | Create, apply, rename, delete tags; tag management screen |
+| Search and filtering | Search by filename, tag, type, date, source drive; works offline |
+| Thumbnail generation | Optional, toggleable; stored in app data directory |
+| Drive status | Online/offline detection; missing file flagging |
+| Basic video playback | Play, pause, scrub — natively supported formats (H.264/MP4 primary) |
+| External player fallback | Open unsupported formats in OS default player |
+| Markers | Named single-point markers and in/out clip markers per asset |
+| Asset detail view | Full metadata, thumbnail, tags, markers |
+| Settings | Library location, thumbnail toggle, purge thumbnails |
+| Cross-platform installers | Windows (.msi), macOS (.dmg), Linux (.deb / .AppImage) |
 
 ---
 
-## Phase 3 — Editor Integration (Target: v2.0)
+## Backlog (Version TBD)
+
+All items below are confirmed future intentions with no assigned version. Versions will be assigned during future release planning.
+
+### Usability & Library
+
+| Feature | Description |
+|---|---|
+| Batch tagging | Apply tags to multiple selected assets simultaneously |
+| Collections / Albums | Group assets into named collections |
+| Duplicate detection | Flag likely duplicate files across drives |
+| Saved searches | Save and reuse common search/filter combinations |
+| Boolean search filters | AND/OR/NOT logic in search |
+| Multiple library support | Create and switch between separate libraries |
+| Hierarchical tags | Parent/child tag relationships |
+
+### Playback & Markers
+
+| Feature | Description |
+|---|---|
+| Advanced playback controls | Playback speed, frame stepping, volume control |
+| FFmpeg proxy playback | Transcode unsupported formats to preview stream on the fly |
+| Marker export | Export marker list to CSV or EDL format |
+
+### Clip Export
+
+| Feature | Description |
+|---|---|
+| Lossless clip export | Export a clip defined by in/out markers using stream copy (no transcoding); creates a new file without modifying the original |
+
+### Editor Integration
 
 | Feature | Description |
 |---|---|
 | Send to editor | Open a clip in the user's preferred video editor |
-| Clip/segment export | Export a defined segment to file without transcoding |
-| Editor profiles | Save preferred editor paths per platform |
-| DaVinci Resolve integration | Direct timeline send (if API permits) |
-| CapCut integration | Send clip to CapCut project (if API permits) |
+| Editor profiles | Save preferred editor executable paths per platform |
+| DaVinci Resolve integration | Direct timeline send if API permits |
+| CapCut integration | Send clip to CapCut project if API permits |
 
----
-
-## Phase 4 — Expanded Asset Types (Target: v2.x)
+### Expanded Asset Types
 
 | Feature | Description |
 |---|---|
 | Document indexing | PDF, project files, scripts |
 | RAW image support | CR3, ARW, NEF and other camera RAW formats |
-| Extended audio formats | AIFF, FLAC, OGG, etc. |
+| Extended audio formats | AIFF, FLAC, OGG |
 
 ---
 
-## Versioning Strategy
+## SDLC Phase Status
 
-| Version | Meaning |
-|---|---|
-| 0.x | Pre-release / development builds |
-| 1.0 | MVP release |
-| 1.x | Iterative improvements within MVP scope |
-| 2.0 | Major feature expansion (editor integration) |
+| SDLC Phase | Description | Status |
+|---|---|---|
+| Phase 1 | Project Definition | ✅ Complete |
+| Phase 2 | Requirements & Scope | ✅ Complete |
+| Phase 3 | Architecture & Technical Design | 🔲 Not Started |
+| Phase 4 | Implementation Planning | 🔲 Not Started |
+| Phase 5 | Development | 🔲 Not Started |
+| Phase 6 | Testing & QA | 🔲 Not Started |
+| Phase 7 | Deployment & Operations | 🔲 Not Started |
+| Phase 8 | Retrospective & Maintenance | 🔲 Not Started |
 
 ---
 
-## Key Design Decisions (carried from Stage 1)
+## Key Design Decisions
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Library model | Single library (MVP) | Simplicity; multiple library support planned for v1.x |
-| Database location | OS app data dir by default; user-configurable | Follows platform conventions; Tauri app_data_dir() API |
-| Tag model | Flat tags (MVP) | Simpler to build and use; hierarchy planned for v1.x |
-| Indexing model | Background process, incremental re-index | Required for scale (100K+ assets across dozens of drives) |
-| Drive workflow | Register drive → prompt to index → background indexing | Clean UX; does not block the interface |
+| Library model | Single library (1.0.0) | Simplicity; multiple library support in backlog |
+| Database location | OS app data dir by default; user-configurable | Follows platform conventions |
+| Tag model | Flat tags (1.0.0) | Simpler to build and use; hierarchical in backlog |
+| Indexing model | Background process, incremental re-index | Required for scale (100K+ assets) |
+| Drive workflow | Register → prompt to index → background indexing | Clean UX |
+| Playback engine | Native HTML5 webview | No extra dependencies for MVP |
+| Playback fallback | Open in OS default player | Covers unsupported formats in 1.0.0 |
+| Marker storage | Local SQLite database only | Never written back to media file |
+| Versioning | SemVer Major.Minor.Patch | Industry standard |
+| Post-MVP planning | Backlog / version TBD | Versions assigned at planning time |
 
 ---
 
@@ -95,5 +140,6 @@ This roadmap reflects a solo developer using AI-assisted tooling. Timelines are 
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0 | 2026-05-19 | Initial draft created during SDLC Stage 1 |
-| 1.1 | 2026-05-19 | Added multiple library support to Phase 2; added hierarchical tags to Phase 2; added key design decisions table; updated M4 to reflect incremental indexing |
+| 1.0 | 2026-05-19 | Initial draft |
+| 1.1 | 2026-05-19 | Added multiple library support and hierarchical tags to backlog; added key design decisions |
+| 1.2 | 2026-05-19 | Restructured to SemVer versioning. All post-MVP features moved to backlog/TBD. Added video playback, markers, and lossless clip export. Added development build progression. Updated SDLC phase terminology. |
