@@ -21,8 +21,6 @@ pub struct StartIndexingResult {
     pub job_id: String,
 }
 
-/// Start indexing a registered drive.
-/// Uses the dedicated db_index connection — never blocks UI commands.
 #[tauri::command]
 pub async fn index_start(
     app_handle: tauri::AppHandle,
@@ -30,6 +28,7 @@ pub async fn index_start(
     indexing_state: tauri::State<'_, IndexingState>,
     drive_id: String,
     incremental: bool,
+    generate_thumbnails: bool,
 ) -> Result<StartIndexingResult, String> {
     {
         let jobs = indexing_state.active_jobs.lock().map_err(|e| e.to_string())?;
@@ -38,7 +37,6 @@ pub async fn index_start(
         }
     }
 
-    // Get drive root path using UI read connection
     let root_path = {
         let conn = state.db_read.lock().map_err(|e| e.to_string())?;
         conn.query_row(
@@ -51,13 +49,13 @@ pub async fn index_start(
     let cancel_flag: CancelFlag = Arc::new(Mutex::new(false));
     let cancel_flag_clone = Arc::clone(&cancel_flag);
 
-    // Pass db_index to the indexer — dedicated connection, never shared
     let job_id = crate::indexer::start_indexing(
         app_handle,
         Arc::clone(&state.db_index),
         drive_id,
         root_path,
         incremental,
+        generate_thumbnails,
         cancel_flag_clone,
     );
 
@@ -69,7 +67,6 @@ pub async fn index_start(
     Ok(StartIndexingResult { job_id })
 }
 
-/// Cancel an in-progress indexing job.
 #[tauri::command]
 pub async fn index_cancel(
     indexing_state: tauri::State<'_, IndexingState>,
@@ -85,7 +82,6 @@ pub async fn index_cancel(
     }
 }
 
-/// Clean up a completed or cancelled job.
 #[tauri::command]
 pub async fn index_cleanup(
     indexing_state: tauri::State<'_, IndexingState>,

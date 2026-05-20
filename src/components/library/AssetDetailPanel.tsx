@@ -1,5 +1,7 @@
 // Asset detail panel — shown when an asset is selected.
 
+import { useState, useEffect } from 'react';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { openAsset, revealAsset } from '../../commands/assets';
 import { DriveStatusBadge } from '../drives/DriveStatusBadge';
 import { Button } from '../common/Button';
@@ -12,7 +14,16 @@ interface AssetDetailPanelProps {
 }
 
 export function AssetDetailPanel({ asset, onClose }: AssetDetailPanelProps) {
+  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
   const onlineLoc = asset.locations.find(l => l.is_online && !l.is_missing);
+
+  useEffect(() => {
+    if (asset.thumbnail_path) {
+      setThumbUrl(convertFileSrc(asset.thumbnail_path));
+    } else {
+      setThumbUrl(null);
+    }
+  }, [asset.thumbnail_path]);
 
   async function handleOpen() {
     if (!onlineLoc) return;
@@ -26,7 +37,6 @@ export function AssetDetailPanel({ asset, onClose }: AssetDetailPanelProps) {
 
   return (
     <div className="flex flex-col h-full bg-gray-900 border-l border-gray-800">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
         <h2 className="text-sm font-semibold text-white truncate">
           {asset.locations[0]?.filename ?? 'Asset Detail'}
@@ -37,37 +47,31 @@ export function AssetDetailPanel({ asset, onClose }: AssetDetailPanelProps) {
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
         {/* Thumbnail */}
         <div className="aspect-video bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden">
-          {asset.thumbnail_path ? (
+          {thumbUrl ? (
             <img
-              src={`asset://${asset.thumbnail_path}`}
+              src={thumbUrl}
               alt="thumbnail"
               className="w-full h-full object-cover"
+              onError={() => setThumbUrl(null)}
             />
           ) : (
             <span className="text-5xl opacity-30">{mediaTypeIcon(asset.media_type)}</span>
           )}
         </div>
 
-        {/* Actions */}
         {onlineLoc && (
           <div className="flex gap-2">
-            <Button variant="primary" onClick={handleOpen} className="flex-1 text-xs">
-              Open
-            </Button>
-            <Button variant="secondary" onClick={handleReveal} className="flex-1 text-xs">
-              Show in Finder
-            </Button>
+            <Button variant="primary" onClick={handleOpen} className="flex-1 text-xs">Open</Button>
+            <Button variant="secondary" onClick={handleReveal} className="flex-1 text-xs">Show in Finder</Button>
           </div>
         )}
 
-        {/* Orphaned warning */}
         {asset.is_orphaned && (
           <div className="bg-yellow-900/30 border border-yellow-700/50 rounded p-2 text-xs text-yellow-300">
             This asset has no active drive location.
           </div>
         )}
 
-        {/* Metadata */}
         <div>
           <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Metadata</p>
           <div className="space-y-1.5">
@@ -83,20 +87,15 @@ export function AssetDetailPanel({ asset, onClose }: AssetDetailPanelProps) {
           </div>
         </div>
 
-        {/* Locations */}
         <div>
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">
-            Locations ({asset.locations.length})
-          </p>
+          <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Locations ({asset.locations.length})</p>
           <div className="space-y-2">
             {asset.locations.map(loc => (
               <div key={loc.id} className="bg-gray-800 rounded p-2">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-xs text-gray-300 font-medium">{loc.drive_name}</span>
                   <DriveStatusBadge isOnline={loc.is_online} />
-                  {loc.is_missing && (
-                    <span className="text-xs text-red-400">Missing</span>
-                  )}
+                  {loc.is_missing && <span className="text-xs text-red-400">Missing</span>}
                 </div>
                 <p className="text-xs text-gray-600 break-all">{loc.file_path}</p>
               </div>
@@ -104,7 +103,6 @@ export function AssetDetailPanel({ asset, onClose }: AssetDetailPanelProps) {
           </div>
         </div>
 
-        {/* Tags */}
         {asset.tags.length > 0 && (
           <div>
             <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Tags</p>
@@ -118,12 +116,9 @@ export function AssetDetailPanel({ asset, onClose }: AssetDetailPanelProps) {
           </div>
         )}
 
-        {/* Markers */}
         {asset.markers.length > 0 && (
           <div>
-            <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">
-              Markers ({asset.markers.length})
-            </p>
+            <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Markers ({asset.markers.length})</p>
             <div className="space-y-1">
               {asset.markers.map(marker => (
                 <div key={marker.id} className="bg-gray-800 rounded p-2 flex items-center justify-between">

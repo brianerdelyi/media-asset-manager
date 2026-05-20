@@ -35,11 +35,11 @@ export function DriveList() {
     setRemoveTarget(null);
   }
 
-  async function handleIndexConfirm(_generateThumbnails: boolean) {
+  async function handleIndexConfirm(generateThumbnails: boolean) {
     if (!indexTarget) return;
     setIndexTarget(null);
     try {
-      await startJob(indexTarget.id, true);
+      await startJob(indexTarget.id, true, generateThumbnails);
     } catch (e) {
       console.error('Failed to start indexing:', e);
     }

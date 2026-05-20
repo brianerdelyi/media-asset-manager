@@ -20,7 +20,7 @@ export interface IndexingJob {
 interface IndexingStore {
   currentJob: IndexingJob | null;
   lastComplete: IndexingCompleteEvent | null;
-  startJob: (driveId: string, incremental: boolean) => Promise<string>;
+  startJob: (driveId: string, incremental: boolean, generateThumbnails?: boolean) => Promise<string>;
   cancelJob: () => Promise<void>;
   updateProgress: (event: IndexingProgressEvent) => void;
   completeJob: (event: IndexingCompleteEvent) => void;
@@ -32,8 +32,8 @@ export const useIndexingStore = create<IndexingStore>((set, get) => ({
   currentJob: null,
   lastComplete: null,
 
-  startJob: async (driveId, incremental) => {
-    const result = await startIndexing(driveId, incremental);
+  startJob: async (driveId, incremental, generateThumbnails = true) => {
+    const result = await startIndexing(driveId, incremental, generateThumbnails);
     set({
       currentJob: {
         jobId: result.job_id,
@@ -77,7 +77,6 @@ export const useIndexingStore = create<IndexingStore>((set, get) => ({
         : null,
       lastComplete: event,
     }));
-    // Clean up the job on the backend
     cleanupIndexing(event.job_id).catch(() => {});
   },
 

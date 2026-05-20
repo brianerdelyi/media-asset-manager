@@ -5,9 +5,10 @@ import type { StartIndexingResult } from '../types/indexing';
 
 export async function startIndexing(
   driveId: string,
-  incremental: boolean = true
+  incremental: boolean = true,
+  generateThumbnails: boolean = true,
 ): Promise<StartIndexingResult> {
-  return invoke<StartIndexingResult>('index_start', { driveId, incremental });
+  return invoke<StartIndexingResult>('index_start', { driveId, incremental, generateThumbnails });
 }
 
 export async function cancelIndexing(jobId: string): Promise<boolean> {
