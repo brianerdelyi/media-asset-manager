@@ -1,3 +1,4 @@
+// Drive management screen
 import { useEffect, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { useDriveStore } from '../../stores/driveStore';
@@ -11,33 +12,21 @@ export function DriveList() {
   const { drives, loading, error, fetchDrives, addDrive, removeDrive, previewRemove, setDriveOnline } = useDriveStore();
   const [showRegister, setShowRegister] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<{ drive: Drive; orphaned: number } | null>(null);
-  const [eventLog, setEventLog] = useState<string[]>([]);
 
   useEffect(() => {
     fetchDrives();
 
-    const unlistenConnected = listen<any>(
+    const unlistenConnected = listen<{ drive_id: string; friendly_name: string; is_first_index: boolean }>(
       'drive:connected',
       (event) => {
-        const p = event.payload;
-        // Handle both snake_case and camelCase from Tauri serialization
-        const driveId = p.drive_id ?? p.driveId;
-        const name = p.friendly_name ?? p.friendlyName;
-        const msg = `connected: ${name} id:${driveId} at ${new Date().toLocaleTimeString()}`;
-        setEventLog(prev => [...prev.slice(-4), msg]);
-        if (driveId) setDriveOnline(driveId, true);
+        setDriveOnline(event.payload.drive_id, true);
       }
     );
 
-    const unlistenDisconnected = listen<any>(
+    const unlistenDisconnected = listen<{ drive_id: string; friendly_name: string }>(
       'drive:disconnected',
       (event) => {
-        const p = event.payload;
-        const driveId = p.drive_id ?? p.driveId;
-        const name = p.friendly_name ?? p.friendlyName;
-        const msg = `disconnected: ${name} id:${driveId} at ${new Date().toLocaleTimeString()}`;
-        setEventLog(prev => [...prev.slice(-4), msg]);
-        if (driveId) setDriveOnline(driveId, false);
+        setDriveOnline(event.payload.drive_id, false);
       }
     );
 
@@ -72,13 +61,6 @@ export function DriveList() {
         </div>
         <Button variant="primary" onClick={() => setShowRegister(true)}>+ Add Source</Button>
       </div>
-
-      {eventLog.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded p-3 mb-4 text-xs text-gray-400 font-mono">
-          <p className="text-gray-500 mb-1">Event log (debug):</p>
-          {eventLog.map((e, i) => <p key={i}>{e}</p>)}
-        </div>
-      )}
 
       {error && (
         <div className="bg-red-900/30 border border-red-700/50 rounded p-3 mb-4 text-sm text-red-400">{error}</div>
