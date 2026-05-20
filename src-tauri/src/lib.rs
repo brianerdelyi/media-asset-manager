@@ -4,6 +4,7 @@ pub mod commands;
 pub mod db;
 pub mod drives;
 pub mod error;
+pub mod indexer;
 pub mod library;
 pub mod models;
 
@@ -25,6 +26,7 @@ pub fn run() {
     library::resolve_thumbnails_path()
         .expect("Failed to create thumbnails directory");
 
+    // Reset all drives to offline on startup — watcher will set them online
     conn.execute("UPDATE drives SET is_online = 0", [])
         .expect("Failed to reset drive online status");
 
@@ -34,13 +36,16 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState { db: Arc::clone(&db) })
+        .manage(commands::indexing::IndexingState::new())
         .invoke_handler(tauri::generate_handler![
             commands::drives::drive_register,
             commands::drives::drive_list,
             commands::drives::drive_remove,
             commands::drives::drive_remove_confirm,
             commands::drives::drive_rename,
-            commands::drives::drive_check_status,
+            commands::indexing::index_start,
+            commands::indexing::index_cancel,
+            commands::indexing::index_cleanup,
         ])
         .setup(move |app| {
             drives::watcher::start(app.handle().clone(), Arc::clone(&db));

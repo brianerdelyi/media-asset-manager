@@ -27,3 +27,6 @@ logs/
 
 # pnpm
 pnpm-lock.yaml
+
+# FFmpeg binaries — large files, download separately
+src-tauri/binaries/
