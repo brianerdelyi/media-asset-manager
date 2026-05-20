@@ -1,6 +1,6 @@
-// Drive management screen — lists registered drives and allows registration/removal/indexing.
+// Drive management screen — drive and indexing events handled globally in App.tsx
+
 import { useEffect, useState } from 'react';
-import { listen } from '@tauri-apps/api/event';
 import { useDriveStore } from '../../stores/driveStore';
 import { useIndexingStore } from '../../stores/indexingStore';
 import { DriveStatusBadge } from './DriveStatusBadge';
@@ -9,58 +9,15 @@ import { RemoveDriveDialog } from './RemoveDriveDialog';
 import { IndexConfirmDialog } from '../indexing/IndexConfirmDialog';
 import { Button } from '../common/Button';
 import type { Drive } from '../../types/drive';
-import type { IndexingProgressEvent, IndexingCompleteEvent } from '../../types/indexing';
 
 export function DriveList() {
-  const { drives, loading, error, fetchDrives, addDrive, removeDrive, previewRemove, setDriveOnline } = useDriveStore();
-  const { currentJob, startJob, updateProgress, completeJob, cancelledJob } = useIndexingStore();
+  const { drives, loading, error, fetchDrives, addDrive, removeDrive, previewRemove } = useDriveStore();
+  const { currentJob, startJob } = useIndexingStore();
   const [showRegister, setShowRegister] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<{ drive: Drive; orphaned: number } | null>(null);
   const [indexTarget, setIndexTarget] = useState<Drive | null>(null);
 
-  useEffect(() => {
-    fetchDrives();
-
-    const unlistenConnected = listen<{ drive_id: string; friendly_name: string; is_first_index: boolean }>(
-      'drive:connected',
-      (event) => {
-        setDriveOnline(event.payload.drive_id, true);
-      }
-    );
-
-    const unlistenDisconnected = listen<{ drive_id: string; friendly_name: string }>(
-      'drive:disconnected',
-      (event) => {
-        setDriveOnline(event.payload.drive_id, false);
-      }
-    );
-
-    const unlistenProgress = listen<IndexingProgressEvent>(
-      'indexing:progress',
-      (event) => updateProgress(event.payload)
-    );
-
-    const unlistenComplete = listen<IndexingCompleteEvent>(
-      'indexing:complete',
-      (event) => {
-        completeJob(event.payload);
-        fetchDrives(); // Refresh asset counts
-      }
-    );
-
-    const unlistenCancelled = listen<{ job_id: string }>(
-      'indexing:cancelled',
-      (event) => cancelledJob(event.payload.job_id)
-    );
-
-    return () => {
-      unlistenConnected.then(fn => fn());
-      unlistenDisconnected.then(fn => fn());
-      unlistenProgress.then(fn => fn());
-      unlistenComplete.then(fn => fn());
-      unlistenCancelled.then(fn => fn());
-    };
-  }, [fetchDrives, setDriveOnline, updateProgress, completeJob, cancelledJob]);
+  useEffect(() => { fetchDrives(); }, []);
 
   async function handleRegister(path: string, friendlyName: string) {
     await addDrive(path, friendlyName);

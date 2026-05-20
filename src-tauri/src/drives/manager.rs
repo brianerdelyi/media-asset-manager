@@ -80,11 +80,12 @@ pub fn preview_remove_drive(
         |row| row.get(0),
     ).map_err(|e| crate::error::AppError::Database(e.to_string()))?;
 
+    // ?1 is reused twice in this query — pass it once, rusqlite handles the reuse
     let orphaned_asset_count: i64 = conn.query_row(
         "SELECT COUNT(*) FROM assets a
          WHERE EXISTS (SELECT 1 FROM locations l WHERE l.asset_id = a.id AND l.drive_id = ?1)
          AND (SELECT COUNT(*) FROM locations l2 WHERE l2.asset_id = a.id AND l2.drive_id != ?1) = 0",
-        params![drive_id, drive_id],
+        params![drive_id],
         |row| row.get(0),
     ).map_err(|e| crate::error::AppError::Database(e.to_string()))?;
 
@@ -100,13 +101,14 @@ pub fn remove_drive(
     drive_id: &str,
     delete_orphaned_assets: bool,
 ) -> Result<DriveRemoveResult, crate::error::AppError> {
+    // ?1 reused twice — pass drive_id once
     let mut stmt = conn.prepare(
         "SELECT a.id FROM assets a
          WHERE EXISTS (SELECT 1 FROM locations l WHERE l.asset_id = a.id AND l.drive_id = ?1)
          AND (SELECT COUNT(*) FROM locations l2 WHERE l2.asset_id = a.id AND l2.drive_id != ?1) = 0",
     ).map_err(|e| crate::error::AppError::Database(e.to_string()))?;
 
-    let orphaned_ids: Vec<String> = stmt.query_map(params![drive_id, drive_id], |row| row.get(0))
+    let orphaned_ids: Vec<String> = stmt.query_map(params![drive_id], |row| row.get(0))
         .map_err(|e| crate::error::AppError::Database(e.to_string()))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| crate::error::AppError::Database(e.to_string()))?;

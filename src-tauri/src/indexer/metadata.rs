@@ -7,7 +7,6 @@
 //! 1. Bundled sidecar next to executable (production)
 //! 2. Homebrew at /opt/homebrew/bin/ (Apple Silicon dev)
 //! 3. Homebrew at /usr/local/bin/ (Intel Mac dev)
-//! 4. System PATH
 
 use std::path::Path;
 use serde::Deserialize;
@@ -55,7 +54,6 @@ pub fn extract_metadata(path: &Path) -> Result<MediaMetadata, crate::error::AppE
         ))?
         .to_string();
 
-    // Get filesystem timestamps
     let fs_meta = std::fs::metadata(path).ok();
     let created_at_fs = fs_meta.as_ref()
         .and_then(|m| m.created().ok())
@@ -66,7 +64,6 @@ pub fn extract_metadata(path: &Path) -> Result<MediaMetadata, crate::error::AppE
         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
         .map(|d| d.as_secs() as i64);
 
-    // Run ffprobe for metadata
     let probe = run_ffprobe(path).unwrap_or_default();
 
     Ok(MediaMetadata {
@@ -108,6 +105,17 @@ struct FfprobeStream {
     height: Option<i64>,
     r_frame_rate: Option<String>,
     sample_rate: Option<String>,
+    bit_rate: Option<String>,
+    #[serde(default)]
+    disposition: FfprobeDisposition,
+}
+
+#[derive(Deserialize, Default)]
+struct FfprobeDisposition {
+    #[serde(default)]
+    default: i64,
+    #[serde(default)]
+    attached_pic: i64,
 }
 
 #[derive(Deserialize, Default)]
@@ -115,7 +123,6 @@ struct FfprobeFormat {
     duration: Option<String>,
 }
 
-/// Run ffprobe on a file and parse the JSON output.
 fn run_ffprobe(path: &Path) -> Result<ProbeOutput, crate::error::AppError> {
     let ffprobe_path = find_ffprobe()?;
 
@@ -137,27 +144,52 @@ fn run_ffprobe(path: &Path) -> Result<ProbeOutput, crate::error::AppError> {
         .as_deref()
         .and_then(|d| d.parse::<f64>().ok());
 
-    for stream in &json.streams {
-        match stream.codec_type.as_deref() {
-            Some("video") => {
-                result.codec = stream.codec_name.clone();
-                result.width = stream.width;
-                result.height = stream.height;
-                result.frame_rate = parse_frame_rate(stream.r_frame_rate.as_deref());
-            }
-            Some("audio") if result.codec.is_none() => {
-                result.codec = stream.codec_name.clone();
-                result.sample_rate = stream.sample_rate.as_deref()
-                    .and_then(|s| s.parse::<i64>().ok());
-            }
-            _ => {}
+    // Select the best video stream:
+    // 1. Prefer the default stream (disposition.default = 1)
+    // 2. Skip attached pictures (cover art, thumbnails — disposition.attached_pic = 1)
+    // 3. Skip MJPEG streams unless it's the only stream (GoPro embeds MJPEG preview)
+    // 4. Among remaining, prefer highest bitrate
+    let video_streams: Vec<&FfprobeStream> = json.streams.iter()
+        .filter(|s| s.codec_type.as_deref() == Some("video"))
+        .filter(|s| s.disposition.attached_pic == 0) // skip cover art
+        .collect();
+
+    // Find best video stream — prefer default, then prefer non-mjpeg, then highest bitrate
+    let best_video = video_streams.iter()
+        .max_by_key(|s| {
+            let is_default = s.disposition.default;
+            let not_mjpeg = if s.codec_name.as_deref() == Some("mjpeg") { 0i64 } else { 1i64 };
+            let bitrate = s.bit_rate.as_deref()
+                .and_then(|b| b.parse::<i64>().ok())
+                .unwrap_or(0);
+            // Score: default status is most important, then non-mjpeg, then bitrate
+            (is_default * 1_000_000_000) + (not_mjpeg * 1_000_000) + (bitrate / 1000)
+        });
+
+    if let Some(stream) = best_video {
+        result.codec = stream.codec_name.clone();
+        result.width = stream.width;
+        result.height = stream.height;
+        result.frame_rate = parse_frame_rate(stream.r_frame_rate.as_deref());
+    }
+
+    // Audio stream — first non-attached audio stream
+    let best_audio = json.streams.iter()
+        .find(|s| s.codec_type.as_deref() == Some("audio")
+            && s.disposition.attached_pic == 0);
+
+    if let Some(stream) = best_audio {
+        if result.codec.is_none() {
+            result.codec = stream.codec_name.clone();
         }
+        result.sample_rate = stream.sample_rate.as_deref()
+            .and_then(|s| s.parse::<i64>().ok());
     }
 
     Ok(result)
 }
 
-/// Find ffprobe binary — for metadata extraction.
+/// Find ffprobe binary.
 fn find_ffprobe() -> Result<std::path::PathBuf, crate::error::AppError> {
     // 1. Bundled sidecar (production)
     if let Ok(exe) = std::env::current_exe() {

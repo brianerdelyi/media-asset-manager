@@ -1,5 +1,6 @@
 //! Media Asset Manager — Tauri backend entry point.
 
+pub mod assets;
 pub mod commands;
 pub mod db;
 pub mod drives;
@@ -11,8 +12,19 @@ pub mod models;
 use rusqlite::Connection;
 use std::sync::{Arc, Mutex};
 
+/// Shared application state.
+///
+/// Three separate SQLite connections to prevent deadlocks:
+/// - db:        UI write connection (drive commands, asset delete, watcher updates)
+/// - db_read:   Read-only connection (asset search, asset get, drive list)
+/// - db_index:  Dedicated indexer connection (indexing engine only)
+///
+/// SQLite WAL mode allows one writer + multiple readers concurrently.
+/// By giving the indexer its own connection it never competes with UI commands.
 pub struct AppState {
     pub db: Arc<Mutex<Connection>>,
+    pub db_read: Arc<Mutex<Connection>>,
+    pub db_index: Arc<Mutex<Connection>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -20,22 +32,37 @@ pub fn run() {
     let db_path = library::resolve_db_path()
         .expect("Failed to resolve library database path");
 
+    // UI write connection — runs migrations on first open
     let conn = db::connection::open(&db_path)
         .expect("Failed to open library database");
 
     library::resolve_thumbnails_path()
         .expect("Failed to create thumbnails directory");
 
-    // Reset all drives to offline on startup — watcher will set them online
+    // Reset all drives to offline on startup
     conn.execute("UPDATE drives SET is_online = 0", [])
         .expect("Failed to reset drive online status");
 
+    // Read-only connection for search queries
+    let conn_read = db::connection::open_readonly(&db_path)
+        .expect("Failed to open read-only database connection");
+
+    // Dedicated indexer connection — never shared with UI commands
+    let conn_index = db::connection::open_for_indexer(&db_path)
+        .expect("Failed to open indexer database connection");
+
     let db = Arc::new(Mutex::new(conn));
+    let db_read = Arc::new(Mutex::new(conn_read));
+    let db_index = Arc::new(Mutex::new(conn_index));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .manage(AppState { db: Arc::clone(&db) })
+        .manage(AppState {
+            db: Arc::clone(&db),
+            db_read: Arc::clone(&db_read),
+            db_index: Arc::clone(&db_index),
+        })
         .manage(commands::indexing::IndexingState::new())
         .invoke_handler(tauri::generate_handler![
             commands::drives::drive_register,
@@ -46,6 +73,11 @@ pub fn run() {
             commands::indexing::index_start,
             commands::indexing::index_cancel,
             commands::indexing::index_cleanup,
+            commands::assets::asset_search,
+            commands::assets::asset_get,
+            commands::assets::asset_delete,
+            commands::assets::asset_open,
+            commands::assets::asset_reveal,
         ])
         .setup(move |app| {
             drives::watcher::start(app.handle().clone(), Arc::clone(&db));

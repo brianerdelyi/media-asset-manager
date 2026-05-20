@@ -22,6 +22,7 @@ pub async fn drive_list(
         .map_err(|e| e.to_string())
 }
 
+/// Preview drive removal — uses write connection to see latest WAL data.
 #[tauri::command]
 pub async fn drive_remove(
     state: tauri::State<'_, AppState>,
@@ -52,25 +53,4 @@ pub async fn drive_rename(
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     crate::drives::manager::rename_drive(&conn, &drive_id, &friendly_name)
         .map_err(|e| e.to_string())
-}
-
-/// Debug: check current drive status directly from DB
-#[tauri::command]
-pub async fn drive_check_status(
-    state: tauri::State<'_, AppState>,
-) -> Result<Vec<(String, String, bool)>, String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    let mut stmt = conn.prepare(
-        "SELECT friendly_name, root_path, is_online FROM drives"
-    ).map_err(|e| e.to_string())?;
-    let rows = stmt.query_map([], |row| {
-        Ok((
-            row.get::<_, String>(0)?,
-            row.get::<_, String>(1)?,
-            row.get::<_, i64>(2)? != 0,
-        ))
-    }).map_err(|e| e.to_string())?
-    .filter_map(|r| r.ok())
-    .collect();
-    Ok(rows)
 }
