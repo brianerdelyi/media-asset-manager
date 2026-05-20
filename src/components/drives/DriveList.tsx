@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { listen } from '@tauri-apps/api/event';
 import { useDriveStore } from '../../stores/driveStore';
 import { DriveStatusBadge } from './DriveStatusBadge';
 import { RegisterDriveDialog } from './RegisterDriveDialog';
@@ -7,11 +8,44 @@ import { Button } from '../common/Button';
 import type { Drive } from '../../types/drive';
 
 export function DriveList() {
-  const { drives, loading, error, fetchDrives, addDrive, removeDrive, previewRemove } = useDriveStore();
+  const { drives, loading, error, fetchDrives, addDrive, removeDrive, previewRemove, setDriveOnline } = useDriveStore();
   const [showRegister, setShowRegister] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<{ drive: Drive; orphaned: number } | null>(null);
+  const [eventLog, setEventLog] = useState<string[]>([]);
 
-  useEffect(() => { fetchDrives(); }, [fetchDrives]);
+  useEffect(() => {
+    fetchDrives();
+
+    const unlistenConnected = listen<any>(
+      'drive:connected',
+      (event) => {
+        const p = event.payload;
+        // Handle both snake_case and camelCase from Tauri serialization
+        const driveId = p.drive_id ?? p.driveId;
+        const name = p.friendly_name ?? p.friendlyName;
+        const msg = `connected: ${name} id:${driveId} at ${new Date().toLocaleTimeString()}`;
+        setEventLog(prev => [...prev.slice(-4), msg]);
+        if (driveId) setDriveOnline(driveId, true);
+      }
+    );
+
+    const unlistenDisconnected = listen<any>(
+      'drive:disconnected',
+      (event) => {
+        const p = event.payload;
+        const driveId = p.drive_id ?? p.driveId;
+        const name = p.friendly_name ?? p.friendlyName;
+        const msg = `disconnected: ${name} id:${driveId} at ${new Date().toLocaleTimeString()}`;
+        setEventLog(prev => [...prev.slice(-4), msg]);
+        if (driveId) setDriveOnline(driveId, false);
+      }
+    );
+
+    return () => {
+      unlistenConnected.then(fn => fn());
+      unlistenDisconnected.then(fn => fn());
+    };
+  }, [fetchDrives, setDriveOnline]);
 
   async function handleRegister(path: string, friendlyName: string) {
     await addDrive(path, friendlyName);
@@ -39,7 +73,16 @@ export function DriveList() {
         <Button variant="primary" onClick={() => setShowRegister(true)}>+ Add Source</Button>
       </div>
 
-      {error && <div className="bg-red-900/30 border border-red-700/50 rounded p-3 mb-4 text-sm text-red-400">{error}</div>}
+      {eventLog.length > 0 && (
+        <div className="bg-gray-800 border border-gray-700 rounded p-3 mb-4 text-xs text-gray-400 font-mono">
+          <p className="text-gray-500 mb-1">Event log (debug):</p>
+          {eventLog.map((e, i) => <p key={i}>{e}</p>)}
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-900/30 border border-red-700/50 rounded p-3 mb-4 text-sm text-red-400">{error}</div>
+      )}
       {loading && <div className="text-sm text-gray-500">Loading...</div>}
 
       {!loading && drives.length === 0 && (
@@ -74,7 +117,9 @@ export function DriveList() {
         </div>
       )}
 
-      {showRegister && <RegisterDriveDialog onConfirm={handleRegister} onCancel={() => setShowRegister(false)} />}
+      {showRegister && (
+        <RegisterDriveDialog onConfirm={handleRegister} onCancel={() => setShowRegister(false)} />
+      )}
       {removeTarget && (
         <RemoveDriveDialog
           driveName={removeTarget.drive.friendly_name}
