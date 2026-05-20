@@ -1,18 +1,31 @@
 # TODO
 
-> Auto-maintained during SDLC process. Do not edit manually during active stages.
+> Auto-maintained during SDLC process.
 
-## Active
+## Sprint 1 — In Progress (0.1.0)
 
-- [ ] Complete Stage 1 — Project Definition
-- [ ] Get Stage 1 approval before proceeding to Stage 2
+- [x] Tauri + React scaffold created
+- [x] App launches on macOS ARM64
+- [x] Package name and identifier corrected
+- [x] Documentation restored alongside scaffold
+- [ ] Add Tailwind CSS
+- [ ] Add SQLite via rusqlite
+- [ ] Implement migration runner
+- [ ] Apply migration 001 — initial schema
+- [ ] Implement library root resolution
+- [ ] Implement app-level config file
+- [ ] Create platform abstraction module stub
 
-## Upcoming
+## Sprint 2 — Upcoming (0.2.0)
+- [ ] Drive registration and management
+- [ ] macOS Volume UUID resolution
+- [ ] Real-time drive detection (notify crate)
 
-- [ ] Stage 2 — Requirements & Scope
-- [ ] Stage 3 — Architecture & Technical Design
-- [ ] Stage 4 — Implementation Planning
-- [ ] Stage 5 — Development
-- [ ] Stage 6 — Testing & QA
-- [ ] Stage 7 — Deployment & Operations
-- [ ] Stage 8 — Retrospective & Maintenance
+## Sprint 3 — Upcoming (0.3.0)
+- [ ] Background indexing engine
+- [ ] Metadata extraction (FFmpeg sidecar)
+- [ ] SHA256 partial hash fingerprinting
+- [ ] Duplicate detection
+
+## Backlog
+- [ ] Stages 6–8 tasks (generated after development)

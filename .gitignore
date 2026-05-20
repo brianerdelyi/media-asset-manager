@@ -1,9 +1,12 @@
-# Dependencies
+# Rust build output
+src-tauri/target/
+
+# Node dependencies
 node_modules/
 .pnpm-store/
 
-# Tauri build output
-src-tauri/target/
+# Build output
+dist/
 
 # Environment files
 .env
@@ -14,8 +17,13 @@ src-tauri/target/
 Thumbs.db
 
 # Editor
-.vscode/
+.vscode/settings.json
 .idea/
 
-# Thumbnails cache (generated at runtime)
+# Runtime generated — never commit
 thumbnails/
+*.db
+logs/
+
+# pnpm
+pnpm-lock.yaml
