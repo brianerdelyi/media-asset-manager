@@ -69,6 +69,11 @@ pub fn run() {
             commands::markers::marker_update,
             commands::markers::marker_delete,
             commands::clip_export::clip_export,
+            commands::settings::settings_get_stats,
+            commands::settings::settings_get,
+            commands::settings::settings_set,
+            commands::settings::settings_delete_orphaned,
+            commands::settings::settings_purge_thumbnails,
         ])
         .setup(move |app| {
             drives::watcher::start(app.handle().clone(), Arc::clone(&db));
