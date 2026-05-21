@@ -1,9 +1,9 @@
-// Main library view — drive and indexing events handled globally in App.tsx
+// Main library view — asset grid with search, filters, and detail view.
 
 import { useEffect } from 'react';
 import { useLibraryStore } from '../../stores/libraryStore';
 import { AssetCard } from './AssetCard';
-import { AssetDetailPanel } from './AssetDetailPanel';
+import { AssetDetailView } from '../detail/AssetDetailView';
 import { SearchBar } from './SearchBar';
 import { FilterPanel } from './FilterPanel';
 import type { AssetSort } from '../../types/asset';
@@ -28,12 +28,28 @@ export function LibraryView() {
     { value: { field: 'file_size', direction: 'asc' }, label: 'Smallest first' },
   ];
 
+  // Show full detail view when asset is selected
+  if (selectedAsset) {
+    return <AssetDetailView asset={selectedAsset} onClose={clearSelection} />;
+  }
+
+  // Loading detail
+  if (detailLoading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-sm text-gray-600">Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full overflow-hidden">
+      {/* Left sidebar — filters */}
       <div className="w-48 flex-shrink-0 bg-gray-950 border-r border-gray-800 p-4 overflow-y-auto">
         <FilterPanel filters={filters} onChange={setFilters} />
       </div>
 
+      {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-800 bg-gray-950">
           <div className="flex-1">
@@ -75,7 +91,7 @@ export function LibraryView() {
                 <AssetCard
                   key={asset.id}
                   asset={asset}
-                  isSelected={selectedAsset?.id === asset.id}
+                  isSelected={false}
                   onClick={() => selectAsset(asset.id)}
                 />
               ))}
@@ -102,19 +118,6 @@ export function LibraryView() {
           )}
         </div>
       </div>
-
-      {(selectedAsset || detailLoading) && (
-        <div className="w-72 flex-shrink-0">
-          {detailLoading && (
-            <div className="h-full bg-gray-900 border-l border-gray-800 flex items-center justify-center">
-              <p className="text-sm text-gray-600">Loading...</p>
-            </div>
-          )}
-          {selectedAsset && !detailLoading && (
-            <AssetDetailPanel asset={selectedAsset} onClose={clearSelection} />
-          )}
-        </div>
-      )}
     </div>
   );
 }

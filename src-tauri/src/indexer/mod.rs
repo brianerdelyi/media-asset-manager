@@ -1,4 +1,5 @@
 //! Indexing engine module.
+pub mod clip_export;
 pub mod engine;
 pub mod hasher;
 pub mod metadata;

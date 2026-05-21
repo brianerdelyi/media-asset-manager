@@ -12,15 +12,6 @@ pub mod models;
 use rusqlite::Connection;
 use std::sync::{Arc, Mutex};
 
-/// Shared application state.
-///
-/// Three separate SQLite connections to prevent deadlocks:
-/// - db:        UI write connection (drive commands, asset delete, watcher updates)
-/// - db_read:   Read-only connection (asset search, asset get, drive list)
-/// - db_index:  Dedicated indexer connection (indexing engine only)
-///
-/// SQLite WAL mode allows one writer + multiple readers concurrently.
-/// By giving the indexer its own connection it never competes with UI commands.
 pub struct AppState {
     pub db: Arc<Mutex<Connection>>,
     pub db_read: Arc<Mutex<Connection>>,
@@ -32,22 +23,18 @@ pub fn run() {
     let db_path = library::resolve_db_path()
         .expect("Failed to resolve library database path");
 
-    // UI write connection — runs migrations on first open
     let conn = db::connection::open(&db_path)
         .expect("Failed to open library database");
 
     library::resolve_thumbnails_path()
         .expect("Failed to create thumbnails directory");
 
-    // Reset all drives to offline on startup
     conn.execute("UPDATE drives SET is_online = 0", [])
         .expect("Failed to reset drive online status");
 
-    // Read-only connection for search queries
     let conn_read = db::connection::open_readonly(&db_path)
         .expect("Failed to open read-only database connection");
 
-    // Dedicated indexer connection — never shared with UI commands
     let conn_index = db::connection::open_for_indexer(&db_path)
         .expect("Failed to open indexer database connection");
 
@@ -78,6 +65,10 @@ pub fn run() {
             commands::assets::asset_delete,
             commands::assets::asset_open,
             commands::assets::asset_reveal,
+            commands::markers::marker_create,
+            commands::markers::marker_update,
+            commands::markers::marker_delete,
+            commands::clip_export::clip_export,
         ])
         .setup(move |app| {
             drives::watcher::start(app.handle().clone(), Arc::clone(&db));
