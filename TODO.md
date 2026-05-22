@@ -6,46 +6,91 @@
 
 ## Current Status
 
-**Version:** 0.9.0 Preview
-**Branch:** `dev`
-**Platform:** macOS ARM64
+**Version:** 0.9.0 Preview  
+**Branch:** `dev`  
+**Platform:** macOS ARM64  
 
-Sprints 1–9 complete. App is feature-complete for preview. Next milestone is 1.0.0.
+Sprints 1–9 complete. App is feature-complete for preview. Sprint 10 planned.
 
 ---
 
-## Sprint 10 — 1.0.0 Release Candidate
+## Sprint 10 — Tags, Asset Metadata, and Transcription
 
-- [ ] Bundle LGPL FFmpeg binary — remove Homebrew dependency for end users
-- [ ] Universal binary build (ARM64 + Intel) for broad macOS compatibility
-- [ ] Apple notarization — remove "unidentified developer" warning on launch
-- [ ] About dialog — version number, attribution, FFmpeg licence notice
-- [ ] README update — installation instructions, screenshots, requirements
-- [ ] Final smoke test on clean macOS install (no Homebrew)
+### 10A — Tags
+- [ ] `tag_list`, `tag_create`, `tag_delete` Rust commands
+- [ ] `asset_tag_add`, `asset_tag_remove`, `asset_tags_set` Rust commands
+- [ ] Extend `asset_search` to filter by `tag_ids`
+- [ ] `tagStore.ts` Zustand store
+- [ ] `TagPicker` component — inline tag selection and creation
+- [ ] `TagBadge` component
+- [ ] Asset detail pane — Tags section with TagPicker
+- [ ] Filter panel — Tags filter section
+
+### 10B — Asset Metadata Fields
+- [ ] `settings_get_asset_metadata` bulk fetch command
+- [ ] Extend `asset_search` to search description and location
+- [ ] Description textarea in asset detail pane
+- [ ] Location input in asset detail pane
+- [ ] Both fields editable, persist via settings table, searchable
+
+### 10C — Model Management
+- [ ] Migration 003 — `transcripts` table + `transcript_fts` FTS5 index
+- [ ] `model_list`, `model_download`, `model_delete` commands
+- [ ] Models section in Settings — download/delete with progress
+- [ ] Model storage: `~/Library/Application Support/media-asset-manager/models/`
+
+### 10D — Transcription Job
+- [ ] `transcribe.py` sidecar — faster-whisper implementation
+- [ ] `transcribe_whisper.py` sidecar — Whisper fallback
+- [ ] Python environment detection (Homebrew, system, pyenv)
+- [ ] `transcription_start`, `transcription_cancel`, `transcription_get`, `transcription_delete` commands
+- [ ] `transcription_estimate` command — estimated duration
+- [ ] `TranscriptionOptionsDialog` — model, language, prompt, estimate
+- [ ] "Generate Transcript" button in asset detail pane
+- [ ] Background transcription with status bar progress and cancel
+- [ ] Toast on completion and cancellation
+- [ ] "No model installed" state handling
+
+### 10E — Transcript Display + Search
+- [ ] `TranscriptPanel` — scrollable timestamped segments
+- [ ] Click segment → seek video to timestamp
+- [ ] Highlight active segment during playback
+- [ ] "Copy transcript" button
+- [ ] "Re-transcribe" button when transcript exists
+- [ ] Extend library search to query `transcript_fts`
+
+### 10F — Release Candidate (1.0.0)
+- [ ] Bundle LGPL FFmpeg binary — remove Homebrew dependency
+- [ ] Universal binary build (ARM64 + Intel)
+- [ ] Apple notarization
+- [ ] About dialog — version, attribution, FFmpeg licence notice
+- [ ] README update — installation, screenshots, requirements
+- [ ] Final smoke test on clean macOS install
 - [ ] Tag and release v1.0.0
 
 ---
 
 ## Backlog — Features
 
-- [ ] **Transcoded clip export** — export clips encoded to H.264/HEVC using macOS VideoToolbox (LGPL-compatible hardware encoder). Format options: MP4 H.264, MP4 HEVC.
-- [ ] **LGPL FFmpeg bundling** — replace Homebrew FFmpeg dependency with bundled LGPL-only static binary. Required for distribution. Enables VideoToolbox encoders for transcoded export.
-- [ ] Tag management UI — create, rename, delete tags; bulk-tag assets from library view
+- [ ] **Transcoded clip export** — H.264/HEVC via macOS VideoToolbox (LGPL-compatible)
+- [ ] **LGPL FFmpeg bundling** — remove Homebrew dependency (moved to Sprint 10F)
+- [ ] Tag management screen — rename and delete tags globally
 - [ ] Batch export — export multiple clips in one operation
-- [ ] Search by tag
-- [ ] Collection / project grouping — group assets into named collections
-- [ ] EDL / CSV marker export — export markers as Edit Decision List or spreadsheet
+- [ ] Collection / project grouping
+- [ ] EDL / CSV marker export
 - [ ] Windows and Linux support
-- [ ] Intel Mac binary (x86_64) or universal binary
+- [ ] Universal binary (moved to Sprint 10F)
+- [ ] User-configurable model storage location (transcription)
+- [ ] Export transcript as SRT, VTT, or TXT
+- [ ] Transcript speaker diarisation
 
 ---
 
 ## Backlog — UI / UX
 
-- [ ] Move Add Marker button — currently in right panel header; consider inline in marker list when empty
 - [ ] Asset card — right-click context menu (Open, Show in Finder, Delete)
-- [ ] Keyboard shortcuts — Space to play/pause, J/K/L shuttle, arrow keys to scrub
-- [ ] Drag-and-drop drive registration — drag a folder onto the Drives view to register
+- [ ] Keyboard shortcuts — Space to play/pause, J/K/L shuttle
+- [ ] Drag-and-drop drive registration
 - [ ] Waveform display for audio assets
 - [ ] Grid / list view toggle in library
 
@@ -53,19 +98,20 @@ Sprints 1–9 complete. App is feature-complete for preview. Next milestone is 1
 
 ## Backlog — Technical
 
-- [ ] Git LFS for FFmpeg binary — currently over GitHub's 50 MB recommended limit
-- [ ] TypeScript strict mode — enable `strict: true` in tsconfig
-- [ ] Unit tests for Rust commands (asset search, marker CRUD, clip export)
-- [ ] Error boundary in React — catch and display unexpected frontend errors gracefully
-- [ ] Logging — structured Rust logs to file for debugging production issues
+- [ ] Git LFS for FFmpeg binary
+- [ ] TypeScript strict mode
+- [ ] Unit tests for Rust commands
+- [ ] Error boundary in React
+- [ ] Structured logging to file
 
 ---
 
 ## Known Issues
 
-- FFmpeg binary in repo exceeds GitHub's recommended 50 MB file size limit (warning on push)
+- FFmpeg binary exceeds GitHub's recommended 50 MB file size limit
 - App requires Homebrew FFmpeg until LGPL binary is bundled
 - No Apple notarization — users see "unidentified developer" warning on first launch
+- `pnpm tauri icon` not yet run — app icon uses placeholder
 
 ---
 
