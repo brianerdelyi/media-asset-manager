@@ -1,5 +1,3 @@
-// Indexing store — manages active indexing jobs and progress state.
-
 import { create } from 'zustand';
 import type { IndexingProgressEvent, IndexingCompleteEvent } from '../types/indexing';
 import { startIndexing, cancelIndexing, cleanupIndexing } from '../commands/indexing';
@@ -20,7 +18,7 @@ export interface IndexingJob {
 interface IndexingStore {
   currentJob: IndexingJob | null;
   lastComplete: IndexingCompleteEvent | null;
-  startJob: (driveId: string, incremental: boolean, generateThumbnails?: boolean) => Promise<string>;
+  startJob: (driveId: string, incremental: boolean, generateThumbnails?: boolean, mediaTypes?: string[]) => Promise<string>;
   cancelJob: () => Promise<void>;
   updateProgress: (event: IndexingProgressEvent) => void;
   completeJob: (event: IndexingCompleteEvent) => void;
@@ -32,8 +30,8 @@ export const useIndexingStore = create<IndexingStore>((set, get) => ({
   currentJob: null,
   lastComplete: null,
 
-  startJob: async (driveId, incremental, generateThumbnails = true) => {
-    const result = await startIndexing(driveId, incremental, generateThumbnails);
+  startJob: async (driveId, incremental, generateThumbnails = true, mediaTypes) => {
+    const result = await startIndexing(driveId, incremental, generateThumbnails, mediaTypes);
     set({
       currentJob: {
         jobId: result.job_id,

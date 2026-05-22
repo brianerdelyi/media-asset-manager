@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button } from '../common/Button';
+import { Dialog, DialogTitle, DialogDescription, DialogActions } from '../common/Dialog';
 
 interface RemoveDriveDialogProps {
   driveName: string;
@@ -18,30 +19,39 @@ export function RemoveDriveDialog({ driveName, orphanedCount, onConfirm, onCance
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-full max-w-md shadow-xl">
-        <h2 className="text-lg font-semibold text-white mb-2">Remove Media Source</h2>
-        <p className="text-sm text-gray-400 mb-4">
-          Remove <span className="text-white font-medium">{driveName}</span> from your library?
-        </p>
-        {orphanedCount > 0 && (
-          <div className="bg-yellow-900/30 border border-yellow-700/50 rounded p-3 mb-4">
-            <p className="text-sm text-yellow-300 mb-2">
-              {orphanedCount} asset{orphanedCount !== 1 ? 's' : ''} will become orphaned.
-            </p>
-            <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
-              <input type="checkbox" checked={deleteOrphaned} onChange={e => setDeleteOrphaned(e.target.checked)} className="rounded" />
-              Delete orphaned assets and their tags and markers
-            </label>
-          </div>
-        )}
-        <div className="flex justify-end gap-2">
-          <Button onClick={onCancel} disabled={loading}>Cancel</Button>
-          <Button variant="danger" onClick={handleConfirm} disabled={loading}>
-            {loading ? 'Removing...' : 'Remove'}
-          </Button>
+    <Dialog>
+      <DialogTitle>Remove Media Source</DialogTitle>
+      <DialogDescription>
+        Remove <strong style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{driveName}</strong> from your library?
+      </DialogDescription>
+
+      {orphanedCount > 0 && (
+        <div style={{
+          background: 'rgba(255,159,10,0.1)', border: '1px solid rgba(255,159,10,0.3)',
+          borderRadius: '6px', padding: '12px', marginBottom: '16px',
+        }}>
+          <p style={{ fontSize: '13px', color: 'var(--status-orphaned)', margin: '0 0 8px' }}>
+            {orphanedCount} asset{orphanedCount !== 1 ? 's' : ''} will become orphaned.
+          </p>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input
+              type="checkbox" checked={deleteOrphaned}
+              onChange={e => setDeleteOrphaned(e.target.checked)}
+              style={{ accentColor: 'var(--color-accent)' }}
+            />
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+              Delete orphaned assets, tags and markers
+            </span>
+          </label>
         </div>
-      </div>
-    </div>
+      )}
+
+      <DialogActions>
+        <Button variant="ghost" onClick={onCancel} disabled={loading}>Cancel</Button>
+        <Button variant="danger" onClick={handleConfirm} disabled={loading}>
+          {loading ? 'Removing…' : 'Remove'}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }

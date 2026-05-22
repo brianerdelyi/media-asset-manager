@@ -8,6 +8,7 @@ export interface Drive {
   registered_at: number;
   last_seen_at: number | null;
   asset_count: number | null;
+  index_media_types: string; // comma-separated: "video,image,audio"
 }
 
 export interface DriveRemovePreview {

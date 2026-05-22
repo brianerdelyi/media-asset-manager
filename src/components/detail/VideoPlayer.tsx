@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { Play, Pause, Film } from 'lucide-react';
 import type { AssetMarker } from '../../types/asset';
 import { formatDuration } from '../../utils/formatters';
 
@@ -9,7 +10,9 @@ interface VideoPlayerProps {
   filePath: string;
   durationMs: number;
   markers: AssetMarker[];
+  posterUrl?: string | null;
   minScrubMs?: number | null;
+  videoHeight?: number | null;
   onTimeUpdate?: (positionMs: number) => void;
   onMarkerClick?: (positionMs: number) => void;
 }
@@ -18,217 +21,167 @@ export interface VideoPlayerHandle {
   seekTo: (ms: number) => void;
 }
 
+// Layout constants (all px, container height = 32px)
+const CONTAINER_H = 32;
+const TRACK_Y     = CONTAINER_H / 2;   // 16 — track bar centre
+const TRI_TOP     = 1;
+const TRI_H       = 9;
+const TRI_BOTTOM  = TRI_TOP + TRI_H;   // 10 — triangle base
+
+// Line: from triangle base to track centre = 6px above track
+// Double it = 12px, centred on track (6px above + 6px below)
+const LINE_TOP    = TRI_BOTTOM;                          // 10
+const LINE_H      = (TRACK_Y - TRI_BOTTOM) * 2;         // 12
+
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({
-  filePath,
-  durationMs,
-  markers,
-  minScrubMs = null,
-  onTimeUpdate,
-  onMarkerClick,
+  filePath, durationMs, markers,
+  posterUrl = null, minScrubMs = null, videoHeight = null,
+  onTimeUpdate, onMarkerClick,
 }, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const timelineRef = useRef<HTMLDivElement>(null);
-  const [playing, setPlaying] = useState(false);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [playing,   setPlaying]   = useState(false);
   const [currentMs, setCurrentMs] = useState(0);
-  const [seeking, setSeeking] = useState(false);
+  const [seeking,   setSeeking]   = useState(false);
   const [loadError, setLoadError] = useState(false);
 
   const src = convertFileSrc(filePath);
 
   useImperativeHandle(ref, () => ({
-    seekTo: (ms: number) => {
-      const video = videoRef.current;
-      if (!video) return;
-      const clamped = minScrubMs !== null ? Math.max(ms, minScrubMs) : ms;
-      video.currentTime = clamped / 1000;
-      setCurrentMs(clamped);
+    seekTo: (ms) => {
+      const v = videoRef.current; if (!v) return;
+      const c = minScrubMs !== null ? Math.max(ms, minScrubMs) : ms;
+      v.currentTime = c / 1000; setCurrentMs(c);
     },
   }));
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    const onPlay = () => setPlaying(true);
-    const onPause = () => setPlaying(false);
-    const onEnded = () => setPlaying(false);
-    video.addEventListener('play', onPlay);
-    video.addEventListener('pause', onPause);
-    video.addEventListener('ended', onEnded);
-    return () => {
-      video.removeEventListener('play', onPlay);
-      video.removeEventListener('pause', onPause);
-      video.removeEventListener('ended', onEnded);
-    };
+    const v = videoRef.current; if (!v) return;
+    const onPlay = () => setPlaying(true), onPause = () => setPlaying(false), onEnded = () => setPlaying(false);
+    v.addEventListener('play', onPlay); v.addEventListener('pause', onPause); v.addEventListener('ended', onEnded);
+    return () => { v.removeEventListener('play', onPlay); v.removeEventListener('pause', onPause); v.removeEventListener('ended', onEnded); };
   }, []);
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    const handler = () => {
-      let ms = Math.floor(video.currentTime * 1000);
-      if (minScrubMs !== null && ms < minScrubMs) {
-        video.currentTime = minScrubMs / 1000;
-        ms = minScrubMs;
-      }
-      setCurrentMs(ms);
-      onTimeUpdate?.(ms);
+    const v = videoRef.current; if (!v) return;
+    const h = () => {
+      let ms = Math.floor(v.currentTime * 1000);
+      if (minScrubMs !== null && ms < minScrubMs) { v.currentTime = minScrubMs / 1000; ms = minScrubMs; }
+      setCurrentMs(ms); onTimeUpdate?.(ms);
     };
-    video.addEventListener('timeupdate', handler);
-    return () => video.removeEventListener('timeupdate', handler);
+    v.addEventListener('timeupdate', h);
+    return () => v.removeEventListener('timeupdate', h);
   }, [minScrubMs, onTimeUpdate]);
 
   useEffect(() => {
-    if (!seeking) return;
-    function onMouseMove(e: MouseEvent) {
-      const rect = timelineRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      seekToPosition(ratio * durationMs);
-    }
-    function onMouseUp() { setSeeking(false); }
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+    if (!seeking) { document.body.style.cursor = ''; return; }
+    document.body.style.cursor = 'ew-resize';
+    const onMove = (e: MouseEvent) => {
+      const r = trackRef.current?.getBoundingClientRect(); if (!r) return;
+      seekTo(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * durationMs);
     };
+    const onUp = () => { setSeeking(false); document.body.style.cursor = ''; };
+    window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
   }, [seeking, durationMs, minScrubMs]);
 
-  function togglePlay() {
-    const video = videoRef.current;
-    if (!video) return;
-    if (video.paused) video.play();
-    else video.pause();
+  function togglePlay() { const v = videoRef.current; if (!v) return; v.paused ? v.play() : v.pause(); }
+
+  function seekTo(ms: number) {
+    const v = videoRef.current; if (!v) return;
+    const c = minScrubMs !== null ? Math.max(ms, minScrubMs) : ms;
+    v.currentTime = c / 1000; setCurrentMs(c); onTimeUpdate?.(c);
   }
 
-  function seekToPosition(ms: number) {
-    const video = videoRef.current;
-    if (!video) return;
-    const clamped = minScrubMs !== null ? Math.max(ms, minScrubMs) : ms;
-    video.currentTime = clamped / 1000;
-    setCurrentMs(clamped);
-    onTimeUpdate?.(clamped);
-  }
-
-  function handleTimelineMouseDown(e: React.MouseEvent<HTMLDivElement>) {
-    const rect = timelineRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    seekToPosition(ratio * durationMs);
+  function handleMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+    const r = trackRef.current?.getBoundingClientRect(); if (!r) return;
+    seekTo(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * durationMs);
     setSeeking(true);
   }
 
-  const progressPercent = durationMs > 0 ? (currentMs / durationMs) * 100 : 0;
-  const minScrubPercent = minScrubMs !== null && durationMs > 0
-    ? (minScrubMs / durationMs) * 100
-    : null;
+  const pct    = durationMs > 0 ? (currentMs / durationMs) * 100 : 0;
+  const minPct = minScrubMs !== null && durationMs > 0 ? (minScrubMs / durationMs) * 100 : null;
+  const left   = `max(5px, ${pct}%)`;
 
-  if (loadError) {
-    return (
-      <div className="bg-gray-900 rounded-lg flex flex-col items-center justify-center py-10 gap-3">
-        <span className="text-4xl opacity-30">🎬</span>
-        <p className="text-sm text-gray-500">Format not supported in preview</p>
-        <p className="text-xs text-gray-600">Use "Open" to play in your default app</p>
-      </div>
-    );
-  }
+  if (loadError) return (
+    <div style={{ background: 'var(--bg-raised)', borderRadius: '8px', aspectRatio: '16/9', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', border: '1px solid var(--border-subtle)' }}>
+      <Film size={32} style={{ opacity: 0.25, color: 'var(--text-secondary)' }} />
+      <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>Format not supported in preview</p>
+      <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: 0 }}>Use "Open" to play in your default app</p>
+    </div>
+  );
 
   return (
-    <div className="bg-black rounded-lg overflow-hidden">
-      <video
-        ref={videoRef}
-        src={src}
-        className="w-full aspect-video cursor-pointer"
-        onClick={togglePlay}
-        onError={() => setLoadError(true)}
-        preload="metadata"
-      />
+    <div style={{ borderRadius: '8px', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
+      <video ref={videoRef} src={src} poster={posterUrl ?? undefined}
+        style={{ display: 'block', width: '100%', height: videoHeight !== null ? `${videoHeight}px` : undefined, aspectRatio: videoHeight === null ? '16/9' : undefined, objectFit: 'contain', background: '#000', cursor: 'pointer' }}
+        onClick={togglePlay} onError={() => setLoadError(true)} preload="metadata" />
 
-      <div className="bg-gray-900 px-3 pt-4 pb-2 space-y-2">
-        <div className="relative select-none" style={{ height: '32px', overflow: 'visible' }}>
-          <div
-            ref={timelineRef}
-            className="absolute inset-x-0"
-            style={{ top: '10px', height: '22px', cursor: 'ew-resize' }}
-            onMouseDown={handleTimelineMouseDown}
-          >
-            <div className="absolute top-1/2 -translate-y-1/2 w-full h-1.5 bg-gray-700 rounded-full">
-              {minScrubPercent !== null && (
-                <div
-                  className="absolute h-full bg-gray-600/50 rounded-l-full"
-                  style={{ width: `${minScrubPercent}%` }}
-                />
-              )}
-              <div
-                className="absolute h-full bg-blue-500 rounded-full"
-                style={{ left: 0, width: `${progressPercent}%` }}
-              />
-            </div>
-
-            {minScrubPercent !== null && (
-              <div
-                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-0.5 h-5 bg-blue-400"
-                style={{ left: `${minScrubPercent}%` }}
-              />
-            )}
-
-            {markers.map(marker => {
-              const leftPct = durationMs > 0 ? (marker.position_ms / durationMs) * 100 : 0;
-              const isRange = marker.end_position_ms && marker.end_position_ms > marker.position_ms;
-              return (
-                <div key={marker.id}>
-                  {isRange && (
-                    <div
-                      className="absolute top-1/2 -translate-y-1/2 h-2 bg-orange-400/30 rounded"
-                      style={{
-                        left: `${leftPct}%`,
-                        width: `${((marker.end_position_ms! - marker.position_ms) / durationMs) * 100}%`,
-                      }}
-                    />
-                  )}
-                  <div
-                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10"
-                    style={{ left: `${leftPct}%`, cursor: 'pointer' }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => { e.stopPropagation(); onMarkerClick?.(marker.position_ms); }}
-                    title={marker.name}
-                  >
-                    {/* All markers use orange dot */}
-                    <div className="w-2.5 h-2.5 rounded-full border-2 border-gray-900 bg-orange-400" />
-                  </div>
-                </div>
-              );
-            })}
-
-            <div
-              className="absolute top-0 bottom-0 -translate-x-1/2 w-px bg-white z-20 pointer-events-none"
-              style={{ left: `${progressPercent}%` }}
-            />
+      <div style={{ background: 'var(--bg-surface)', padding: '10px 12px 8px', borderTop: '1px solid var(--border-subtle)', overflow: 'visible' }}>
+        <div ref={trackRef}
+          style={{ position: 'relative', height: `${CONTAINER_H}px`, marginBottom: '6px', overflow: 'visible', userSelect: 'none', cursor: 'default' }}
+          onMouseDown={handleMouseDown}
+        >
+          {/* Track bar */}
+          <div style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', left: 0, right: 0, height: '4px', background: 'var(--border-default)', borderRadius: '2px' }}>
+            {minPct !== null && <div style={{ position: 'absolute', height: '100%', background: 'var(--border-subtle)', borderRadius: '2px 0 0 2px', width: `${minPct}%` }} />}
+            <div style={{ position: 'absolute', height: '100%', background: 'var(--color-accent)', borderRadius: '2px', width: `${pct}%`, transition: seeking ? 'none' : 'width 0.1s' }} />
           </div>
 
-          <div
-            className="absolute -translate-x-1/2 z-30"
-            style={{ left: `${progressPercent}%`, top: '0px', cursor: 'ew-resize' }}
-            onMouseDown={(e) => { e.stopPropagation(); setSeeking(true); }}
-          >
-            <div style={{
-              width: 0,
-              height: 0,
-              borderLeft: '6px solid transparent',
-              borderRight: '6px solid transparent',
-              borderTop: '10px solid white',
-            }} />
+          {/* In-point line */}
+          {minPct !== null && (
+            <div style={{ position: 'absolute', top: '50%', transform: 'translate(-50%,-50%)', left: `${minPct}%`, width: '2px', height: '16px', background: 'var(--color-accent)', opacity: 0.7 }} />
+          )}
+
+          {/* Marker dots */}
+          {markers.map(marker => {
+            const lp = durationMs > 0 ? (marker.position_ms / durationMs) * 100 : 0;
+            const isRange = marker.end_position_ms && marker.end_position_ms > marker.position_ms;
+            return (
+              <div key={marker.id}>
+                {isRange && <div style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', height: '8px', background: 'rgba(255,159,10,0.25)', borderRadius: '2px', left: `${lp}%`, width: `${((marker.end_position_ms! - marker.position_ms) / durationMs) * 100}%` }} />}
+                <div style={{ position: 'absolute', top: '50%', transform: 'translate(-50%,-50%)', left: `${lp}%`, zIndex: 10, cursor: 'pointer' }}
+                  onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); onMarkerClick?.(marker.position_ms); }} title={marker.name}>
+                  <div style={{ width: '9px', height: '9px', borderRadius: '50%', background: 'var(--status-orphaned)', border: '2px solid var(--bg-surface)' }} />
+                </div>
+              </div>
+            );
+          })}
+
+          {/*
+           * Playhead line — centred on track bar.
+           * top: LINE_TOP (10px) — starts at triangle base
+           * height: LINE_H (12px) — 6px above track centre + 6px below
+           * Result: track bar bisects the line symmetrically.
+           */}
+          <div style={{
+            position: 'absolute',
+            top: `${LINE_TOP}px`,
+            height: `${LINE_H}px`,
+            left,
+            transform: 'translateX(-50%)',
+            width: '2px',
+            background: 'var(--playhead-color)',
+            zIndex: 20,
+            pointerEvents: 'none',
+          }} />
+
+          {/* Triangle handle */}
+          <div style={{ position: 'absolute', top: `${TRI_TOP}px`, left, transform: 'translateX(-50%)', zIndex: 30, cursor: 'ew-resize', lineHeight: 0 }}
+            onMouseDown={e => { e.stopPropagation(); setSeeking(true); }}>
+            <div style={{ width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: `${TRI_H}px solid var(--playhead-color)` }} />
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={togglePlay}
-            className="text-white hover:text-blue-400 transition-colors text-lg w-6 text-center"
-          >
-            {playing ? '⏸' : '▶'}
+        {/* Play / timecode */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button onClick={togglePlay}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-primary)', display: 'flex', alignItems: 'center' }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-accent)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-primary)')}>
+            {playing ? <Pause size={16} /> : <Play size={16} />}
           </button>
-          <span className="text-xs text-gray-400 font-mono">
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
             {formatDuration(currentMs)} / {formatDuration(durationMs)}
           </span>
         </div>

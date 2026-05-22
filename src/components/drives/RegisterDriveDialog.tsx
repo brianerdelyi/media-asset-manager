@@ -1,17 +1,22 @@
 import { useState } from 'react';
 import { selectFolder } from '../../commands/drives';
 import { Button } from '../common/Button';
+import { Dialog, DialogTitle, DialogDescription, DialogActions, DialogInput } from '../common/Dialog';
+import { IndexConfirmDialog } from '../indexing/IndexConfirmDialog';
+import type { Drive } from '../../types/drive';
 
 interface RegisterDriveDialogProps {
-  onConfirm: (path: string, friendlyName: string) => Promise<void>;
-  onCancel: () => void;
+  onRegister: (path: string, friendlyName: string) => Promise<Drive>;
+  onClose: () => void;
+  onIndexNow: (drive: Drive, generateThumbnails: boolean, mediaTypes: string[]) => void;
 }
 
-export function RegisterDriveDialog({ onConfirm, onCancel }: RegisterDriveDialogProps) {
+export function RegisterDriveDialog({ onRegister, onClose, onIndexNow }: RegisterDriveDialogProps) {
   const [path, setPath] = useState('');
   const [friendlyName, setFriendlyName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [registeredDrive, setRegisteredDrive] = useState<Drive | null>(null);
 
   async function handleBrowse() {
     const selected = await selectFolder();
@@ -24,44 +29,66 @@ export function RegisterDriveDialog({ onConfirm, onCancel }: RegisterDriveDialog
     }
   }
 
-  async function handleConfirm() {
+  async function handleRegister() {
     if (!path || !friendlyName.trim()) return;
     setLoading(true);
     setError(null);
     try {
-      await onConfirm(path, friendlyName.trim());
+      const drive = await onRegister(path, friendlyName.trim());
+      setRegisteredDrive(drive);
     } catch (e) {
       setError(String(e));
       setLoading(false);
     }
   }
 
+  // Step 2 — index prompt after successful registration
+  if (registeredDrive) {
+    return (
+      <IndexConfirmDialog
+        driveName={registeredDrive.friendly_name}
+        defaultGenerateThumbnails={true}
+        defaultMediaTypes={['video', 'image', 'audio']}
+        onConfirm={(generateThumbnails, mediaTypes) => {
+          onIndexNow(registeredDrive, generateThumbnails, mediaTypes);
+          onClose();
+        }}
+        onCancel={onClose}
+      />
+    );
+  }
+
+  // Step 1 — registration form
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-full max-w-md shadow-xl">
-        <h2 className="text-lg font-semibold text-white mb-4">Register Media Source</h2>
-        <div className="mb-4">
-          <label className="block text-sm text-gray-400 mb-1">Drive or Folder</label>
-          <div className="flex gap-2">
-            <input type="text" value={path} readOnly placeholder="Select a drive or folder..."
-              className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-gray-300 placeholder-gray-600" />
-            <Button onClick={handleBrowse} disabled={loading}>Browse</Button>
-          </div>
-        </div>
-        <div className="mb-5">
-          <label className="block text-sm text-gray-400 mb-1">Friendly Name</label>
-          <input type="text" value={friendlyName} onChange={e => setFriendlyName(e.target.value)}
-            placeholder="e.g. Footage Drive 01"
-            className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-gray-300 placeholder-gray-600 focus:outline-none focus:border-blue-500" />
-        </div>
-        {error && <p className="text-sm text-red-400 mb-4">{error}</p>}
-        <div className="flex justify-end gap-2">
-          <Button onClick={onCancel} disabled={loading}>Cancel</Button>
-          <Button variant="primary" onClick={handleConfirm} disabled={!path || !friendlyName.trim() || loading}>
-            {loading ? 'Registering...' : 'Register'}
-          </Button>
+    <Dialog>
+      <DialogTitle>Register Media Source</DialogTitle>
+      <DialogDescription>Add a drive or folder to your media library.</DialogDescription>
+
+      <div style={{ marginBottom: '14px' }}>
+        <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '5px' }}>
+          Drive or Folder
+        </label>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <input
+            type="text" value={path} readOnly placeholder="Select a drive or folder…"
+            style={{ flex: 1, background: 'var(--bg-raised)', border: '1px solid var(--border-default)', borderRadius: '6px', padding: '7px 10px', fontSize: '13px', color: 'var(--text-primary)', outline: 'none' }}
+          />
+          <Button variant="secondary" onClick={handleBrowse} disabled={loading}>Browse</Button>
         </div>
       </div>
-    </div>
+
+      <DialogInput label="Friendly Name" value={friendlyName} onChange={setFriendlyName} placeholder="e.g. Footage Drive 01" />
+
+      {error && (
+        <p style={{ fontSize: '12px', color: 'var(--color-danger)', marginBottom: '12px' }}>{error}</p>
+      )}
+
+      <DialogActions>
+        <Button variant="ghost" onClick={onClose} disabled={loading}>Cancel</Button>
+        <Button variant="primary" onClick={handleRegister} disabled={!path || !friendlyName.trim() || loading}>
+          {loading ? 'Registering…' : 'Register'}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }

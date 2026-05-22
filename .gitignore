@@ -1,32 +1,9 @@
-# Rust build output
-src-tauri/target/
-
-# Node dependencies
 node_modules/
-.pnpm-store/
-
-# Build output
 dist/
-
-# Environment files
+src-tauri/target/
+src-tauri/gen/
 .env
 .env.local
-
-# OS files
 .DS_Store
-Thumbs.db
-
-# Editor
-.vscode/settings.json
-.idea/
-
-# Runtime generated — never commit
-thumbnails/
-*.db
-logs/
-
-# pnpm
-pnpm-lock.yaml
-
-# FFmpeg binaries — large files, download separately
-src-tauri/binaries/
+*.DS_Store
+*.log

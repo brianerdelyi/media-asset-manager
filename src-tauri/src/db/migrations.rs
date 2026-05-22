@@ -9,7 +9,9 @@ pub fn run(conn: &Connection) -> Result<(), crate::error::AppError> {
             description TEXT NOT NULL
         );",
     ).map_err(|e| crate::error::AppError::Database(e.to_string()))?;
-    apply(conn, 1, "initial_schema", migration_001_initial_schema)?;
+
+    apply(conn, 1, "initial_schema",        migration_001_initial_schema)?;
+    apply(conn, 2, "drive_media_types",     migration_002_drive_media_types)?;
     Ok(())
 }
 
@@ -27,18 +29,21 @@ fn apply(
         )
         .map(|count| count > 0)
         .map_err(|e| crate::error::AppError::Database(e.to_string()))?;
-    if already_applied {
-        return Ok(());
-    }
+
+    if already_applied { return Ok(()); }
+
     migration_fn(conn)?;
+
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64;
+
     conn.execute(
         "INSERT INTO schema_migrations (version, applied_at, description) VALUES (?1, ?2, ?3)",
         rusqlite::params![version, now, description],
     ).map_err(|e| crate::error::AppError::Database(e.to_string()))?;
+
     Ok(())
 }
 
@@ -125,4 +130,13 @@ fn migration_001_initial_schema(conn: &Connection) -> Result<(), crate::error::A
         INSERT OR IGNORE INTO settings (key, value, updated_at)
             VALUES ('thumbnail_generation_enabled', 'true', strftime('%s', 'now'));
     ").map_err(|e| crate::error::AppError::Database(e.to_string()))
+}
+
+/// Migration 002 — add index_media_types column to drives table.
+/// Uses ADD COLUMN which is safe on existing databases — adds the column
+/// with a DEFAULT so existing rows get 'video,image,audio' automatically.
+fn migration_002_drive_media_types(conn: &Connection) -> Result<(), crate::error::AppError> {
+    conn.execute_batch(
+        "ALTER TABLE drives ADD COLUMN index_media_types TEXT NOT NULL DEFAULT 'video,image,audio';"
+    ).map_err(|e| crate::error::AppError::Database(e.to_string()))
 }

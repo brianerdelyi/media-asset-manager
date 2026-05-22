@@ -1,7 +1,6 @@
-// Marker panel — Add Marker button and creation form only.
-// The marker list is displayed in the right detail panel (AssetDetailView).
+// Marker creation form — shown inline in the right panel when Add is clicked.
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createMarker } from '../../commands/markers';
 import { Button } from '../common/Button';
 import { formatDuration } from '../../utils/formatters';
@@ -14,6 +13,7 @@ interface MarkerPanelProps {
   onMarkersChanged: () => void;
   onMarkerClick: (positionMs: number) => void;
   onConstrainScrub?: (minMs: number | null) => void;
+  onCancel?: () => void;
 }
 
 export function MarkerPanel({
@@ -22,92 +22,84 @@ export function MarkerPanel({
   currentMs,
   onMarkersChanged,
   onConstrainScrub,
+  onCancel,
 }: MarkerPanelProps) {
-  const [active, setActive] = useState(false);
-  const [inMs, setInMs] = useState<number | null>(null);
-  const [name, setName] = useState('');
+  const [inMs] = useState<number>(currentMs);
+  const [name, setName] = useState(`Marker ${markers.length + 1}`);
   const [saving, setSaving] = useState(false);
 
-  const nextMarkerNum = markers.length + 1;
+  useEffect(() => {
+    onConstrainScrub?.(inMs);
+    return () => onConstrainScrub?.(null);
+  }, []);
 
-  function handleAddMarker() {
-    setInMs(currentMs);
-    setName(`Marker ${nextMarkerNum}`);
-    setActive(true);
-    onConstrainScrub?.(currentMs);
-  }
+  const outMs = currentMs > inMs ? currentMs : null;
 
   async function handleSave() {
-    if (inMs === null) return;
     setSaving(true);
-    const outMs = currentMs > inMs ? currentMs : inMs;
     try {
       await createMarker({
         asset_id: assetId,
-        name: name.trim() || `Marker ${nextMarkerNum}`,
-        marker_type: outMs > inMs ? 'clip' : 'point',
+        name: name.trim() || `Marker ${markers.length + 1}`,
+        marker_type: outMs ? 'clip' : 'point',
         position_ms: inMs,
-        end_position_ms: outMs > inMs ? outMs : undefined,
+        end_position_ms: outMs ?? undefined,
       });
       onMarkersChanged();
     } catch (e) {
       console.error('Failed to save marker:', e);
-    } finally {
       setSaving(false);
-      setActive(false);
-      setInMs(null);
-      setName('');
-      onConstrainScrub?.(null);
     }
   }
 
   function handleCancel() {
-    setActive(false);
-    setInMs(null);
-    setName('');
-    onConstrainScrub?.(null);
-  }
-
-  const outMs = active && inMs !== null ? Math.max(currentMs, inMs) : null;
-
-  if (!active) {
-    return (
-      <Button variant="secondary" onClick={handleAddMarker} className="text-xs">
-        + Add Marker
-      </Button>
-    );
+    onCancel?.();
   }
 
   return (
-    <div className="bg-gray-800 border border-blue-700/50 rounded p-3 space-y-2">
+    <div style={{
+      background: 'var(--bg-raised)',
+      border: '1px solid var(--color-accent)',
+      borderRadius: '6px',
+      padding: '10px 12px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+    }}>
       <input
         type="text"
         value={name}
         onChange={e => setName(e.target.value)}
-        onKeyDown={e => e.key === 'Enter' && handleSave()}
-        placeholder="Marker name..."
+        onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') handleCancel(); }}
+        placeholder="Marker name…"
         autoFocus
-        className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200
-                   placeholder-gray-500 focus:outline-none focus:border-blue-500"
+        style={{
+          width: '100%', background: 'var(--bg-surface)',
+          border: '1px solid var(--border-default)', borderRadius: '6px',
+          padding: '6px 10px', fontSize: '13px', color: 'var(--text-primary)',
+          outline: 'none', boxSizing: 'border-box',
+        }}
+        onFocus={e => (e.target.style.borderColor = 'var(--color-accent)')}
+        onBlur={e => (e.target.style.borderColor = 'var(--border-default)')}
       />
-      <div className="flex items-center gap-4 text-xs">
-        <div>
-          <span className="text-gray-500 mr-1.5">In</span>
-          <span className="text-blue-400 font-mono">{formatDuration(inMs!)}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>In</span>
+          <span style={{ fontSize: '11px', color: 'var(--color-accent)', fontFamily: 'var(--font-mono)' }}>
+            {formatDuration(inMs)}
+          </span>
         </div>
-        <div>
-          <span className="text-gray-500 mr-1.5">Out</span>
-          <span className={`font-mono ${outMs !== null && outMs > inMs! ? 'text-orange-400' : 'text-gray-600'}`}>
-            {outMs !== null && outMs > inMs! ? formatDuration(outMs) : '——'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Out</span>
+          <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: outMs ? 'var(--status-orphaned)' : 'var(--text-tertiary)' }}>
+            {outMs ? formatDuration(outMs) : '——'}
           </span>
         </div>
       </div>
-      <div className="flex gap-2">
-        <Button variant="primary" onClick={handleSave} disabled={saving} className="text-xs flex-1">
-          {saving ? 'Saving...' : 'Save'}
-        </Button>
-        <Button variant="secondary" onClick={handleCancel} disabled={saving} className="text-xs">
-          Cancel
+      <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+        <Button variant="ghost" size="sm" onClick={handleCancel} disabled={saving}>Cancel</Button>
+        <Button variant="primary" size="sm" onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : 'Save'}
         </Button>
       </div>
     </div>

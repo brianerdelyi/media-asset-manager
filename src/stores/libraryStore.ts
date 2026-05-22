@@ -1,8 +1,9 @@
-// Library store — manages asset search results, filters, and selected asset.
+// Library store — manages asset search results, filters, selected asset, and asset name overrides.
 
 import { create } from 'zustand';
 import type { AssetDetail, AssetSearchFilters, AssetSearchResult, AssetSort, AssetSummary } from '../types/asset';
 import { searchAssets, getAsset, deleteAsset } from '../commands/assets';
+import { getAssetNames } from '../commands/settings';
 
 interface LibraryStore {
   results: AssetSummary[];
@@ -15,6 +16,8 @@ interface LibraryStore {
   sort: AssetSort;
   selectedAsset: AssetDetail | null;
   detailLoading: boolean;
+  // Map of asset_id -> custom name (from settings table)
+  assetNames: Record<string, string>;
 
   search: () => Promise<void>;
   setFilters: (filters: Partial<AssetSearchFilters>) => void;
@@ -24,6 +27,7 @@ interface LibraryStore {
   clearSelection: () => void;
   removeAsset: (assetId: string) => Promise<void>;
   refreshSelected: () => Promise<void>;
+  refreshAssetNames: () => Promise<void>;
 }
 
 const DEFAULT_SORT: AssetSort = { field: 'created_at_fs', direction: 'desc' };
@@ -39,6 +43,7 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
   sort: DEFAULT_SORT,
   selectedAsset: null,
   detailLoading: false,
+  assetNames: {},
 
   search: async () => {
     const { filters, sort, page, pageSize } = get();
@@ -46,6 +51,8 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
     try {
       const result: AssetSearchResult = await searchAssets(filters, sort, page, pageSize);
       set({ results: result.data, total: result.total, loading: false });
+      // Load asset name overrides in parallel — don't block the grid
+      getAssetNames().then(names => set({ assetNames: names })).catch(() => {});
     } catch (e) {
       set({ error: String(e), loading: false });
     }
@@ -56,15 +63,8 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
     get().search();
   },
 
-  setSort: (sort) => {
-    set({ sort, page: 1 });
-    get().search();
-  },
-
-  setPage: (page) => {
-    set({ page });
-    get().search();
-  },
+  setSort: (sort) => { set({ sort, page: 1 }); get().search(); },
+  setPage: (page) => { set({ page }); get().search(); },
 
   selectAsset: async (assetId) => {
     set({ detailLoading: true });
@@ -93,6 +93,15 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
     try {
       const asset = await getAsset(selectedAsset.id);
       set({ selectedAsset: asset });
+    } catch (_) {}
+    // Also refresh asset names in case one was just saved
+    getAssetNames().then(names => set({ assetNames: names })).catch(() => {});
+  },
+
+  refreshAssetNames: async () => {
+    try {
+      const names = await getAssetNames();
+      set({ assetNames: names });
     } catch (_) {}
   },
 }));

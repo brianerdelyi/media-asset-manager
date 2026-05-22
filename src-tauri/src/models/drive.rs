@@ -12,6 +12,8 @@ pub struct Drive {
     pub registered_at: i64,
     pub last_seen_at: Option<i64>,
     pub asset_count: Option<i64>,
+    /// Comma-separated media types to index: "video,image,audio"
+    pub index_media_types: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

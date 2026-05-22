@@ -1,5 +1,3 @@
-// Typed Tauri command wrappers for indexing operations.
-
 import { invoke } from '@tauri-apps/api/core';
 import type { StartIndexingResult } from '../types/indexing';
 
@@ -7,8 +5,9 @@ export async function startIndexing(
   driveId: string,
   incremental: boolean = true,
   generateThumbnails: boolean = true,
+  mediaTypes?: string[],
 ): Promise<StartIndexingResult> {
-  return invoke<StartIndexingResult>('index_start', { driveId, incremental, generateThumbnails });
+  return invoke<StartIndexingResult>('index_start', { driveId, incremental, generateThumbnails, mediaTypes });
 }
 
 export async function cancelIndexing(jobId: string): Promise<boolean> {

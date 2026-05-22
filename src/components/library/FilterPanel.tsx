@@ -1,4 +1,4 @@
-// Filter panel — media type, drive, status, date range filters.
+// Filter panel — media type, drive, status filters.
 
 import { useDriveStore } from '../../stores/driveStore';
 import type { AssetSearchFilters } from '../../types/asset';
@@ -27,98 +27,120 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
     onChange({ drive_ids: updated.length > 0 ? updated : undefined });
   }
 
-  const mediaTypes = ['video', 'image', 'audio'];
-  const statusOptions = [
-    { value: 'all', label: 'All' },
-    { value: 'orphaned', label: 'Orphaned' },
-    { value: 'missing', label: 'Missing' },
-  ];
+  const hasActiveFilters = filters.media_types || filters.drive_ids || filters.status || filters.has_markers;
 
   return (
-    <div className="space-y-4">
-      {/* Media Type */}
-      <div>
-        <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Type</p>
-        <div className="space-y-1">
-          {mediaTypes.map(type => (
-            <label key={type} className="flex items-center gap-2 cursor-pointer group">
-              <input
-                type="checkbox"
-                checked={filters.media_types?.includes(type) ?? false}
-                onChange={() => toggleMediaType(type)}
-                className="rounded"
-              />
-              <span className="text-sm text-gray-300 capitalize group-hover:text-white">
-                {type}
-              </span>
-            </label>
-          ))}
-        </div>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+      {/* Type */}
+      <FilterSection label="Type">
+        {['video', 'image', 'audio'].map(type => (
+          <FilterCheckbox
+            key={type}
+            label={type.charAt(0).toUpperCase() + type.slice(1)}
+            checked={filters.media_types?.includes(type) ?? false}
+            onChange={() => toggleMediaType(type)}
+          />
+        ))}
+      </FilterSection>
 
       {/* Status */}
-      <div>
-        <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Status</p>
-        <div className="space-y-1">
-          {statusOptions.map(opt => (
-            <label key={opt.value} className="flex items-center gap-2 cursor-pointer group">
-              <input
-                type="radio"
-                name="status"
-                value={opt.value}
-                checked={(filters.status ?? 'all') === opt.value}
-                onChange={() => onChange({ status: opt.value as any })}
-              />
-              <span className="text-sm text-gray-300 group-hover:text-white">{opt.label}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {/* Has Markers */}
-      <div>
-        <label className="flex items-center gap-2 cursor-pointer group">
-          <input
-            type="checkbox"
-            checked={filters.has_markers ?? false}
-            onChange={e => onChange({ has_markers: e.target.checked ? true : undefined })}
-            className="rounded"
+      <FilterSection label="Status">
+        {[
+          { value: 'all', label: 'All' },
+          { value: 'orphaned', label: 'Orphaned' },
+          { value: 'missing', label: 'Missing' },
+        ].map(opt => (
+          <FilterRadio
+            key={opt.value}
+            label={opt.label}
+            checked={(filters.status ?? 'all') === opt.value}
+            onChange={() => onChange({ status: opt.value as any })}
+            name="status"
           />
-          <span className="text-sm text-gray-300 group-hover:text-white">Has markers</span>
-        </label>
-      </div>
+        ))}
+      </FilterSection>
 
-      {/* Source Drive */}
+      {/* Markers */}
+      <FilterSection label="Markers">
+        <FilterCheckbox
+          label="Has markers"
+          checked={filters.has_markers ?? false}
+          onChange={e => onChange({ has_markers: e.target.checked ? true : undefined })}
+        />
+      </FilterSection>
+
+      {/* Drives */}
       {drives.length > 0 && (
-        <div>
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Drive</p>
-          <div className="space-y-1">
-            {drives.map(drive => (
-              <label key={drive.id} className="flex items-center gap-2 cursor-pointer group">
-                <input
-                  type="checkbox"
-                  checked={filters.drive_ids?.includes(drive.id) ?? false}
-                  onChange={() => toggleDrive(drive.id)}
-                  className="rounded"
-                />
-                <span className="text-sm text-gray-300 truncate group-hover:text-white" title={drive.friendly_name}>
-                  {drive.friendly_name}
-                </span>
-              </label>
-            ))}
-          </div>
-        </div>
+        <FilterSection label="Drive">
+          {drives.map(drive => (
+            <FilterCheckbox
+              key={drive.id}
+              label={drive.friendly_name}
+              checked={filters.drive_ids?.includes(drive.id) ?? false}
+              onChange={() => toggleDrive(drive.id)}
+            />
+          ))}
+        </FilterSection>
       )}
 
-      {/* Clear filters */}
-      {(filters.media_types || filters.drive_ids || filters.status || filters.has_markers) && (
+      {/* Clear */}
+      {hasActiveFilters && (
         <button
           onClick={() => onChange({ media_types: undefined, drive_ids: undefined, status: 'all', has_markers: undefined })}
-          className="text-xs text-blue-400 hover:text-blue-300"
+          style={{
+            fontSize: '12px', color: 'var(--color-accent)',
+            background: 'none', border: 'none', cursor: 'pointer',
+            textAlign: 'left', padding: 0,
+          }}
         >
           Clear filters
         </button>
       )}
     </div>
+  );
+}
+
+function FilterSection({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p style={{
+        fontSize: '10px', color: 'var(--text-tertiary)',
+        textTransform: 'uppercase', letterSpacing: '0.06em',
+        margin: '0 0 6px',
+      }}>
+        {label}
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function FilterCheckbox({ label, checked, onChange }: {
+  label: string;
+  checked: boolean;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <label style={{ display: 'flex', alignItems: 'center', gap: '7px', cursor: 'pointer' }}>
+      <input type="checkbox" checked={checked} onChange={onChange} style={{ accentColor: 'var(--color-accent)' }} />
+      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{label}</span>
+    </label>
+  );
+}
+
+function FilterRadio({ label, checked, onChange, name }: {
+  label: string;
+  checked: boolean;
+  onChange: () => void;
+  name: string;
+}) {
+  return (
+    <label style={{ display: 'flex', alignItems: 'center', gap: '7px', cursor: 'pointer' }}>
+      <input type="radio" name={name} checked={checked} onChange={onChange} style={{ accentColor: 'var(--color-accent)' }} />
+      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{label}</span>
+    </label>
   );
 }

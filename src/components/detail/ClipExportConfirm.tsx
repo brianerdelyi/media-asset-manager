@@ -1,6 +1,7 @@
 // Lossless clip export confirmation panel.
 
 import { Button } from '../common/Button';
+import { Dialog, DialogTitle, DialogActions } from '../common/Dialog';
 import { formatDuration, formatFileSize } from '../../utils/formatters';
 import type { AssetMarker } from '../../types/asset';
 
@@ -14,12 +15,7 @@ interface ClipExportConfirmProps {
 }
 
 export function ClipExportConfirm({
-  marker,
-  assetDurationMs,
-  assetFileSizeBytes,
-  fileExtension,
-  onConfirm,
-  onCancel,
+  marker, assetDurationMs, assetFileSizeBytes, fileExtension, onConfirm, onCancel,
 }: ClipExportConfirmProps) {
   const clipDurationMs = marker.end_position_ms! - marker.position_ms;
   const ratio = assetDurationMs > 0 ? clipDurationMs / assetDurationMs : 0;
@@ -27,35 +23,49 @@ export function ClipExportConfirm({
   const ext = fileExtension.toLowerCase();
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-gray-900 border border-gray-700 rounded-lg p-5 w-80 shadow-xl">
-        <h2 className="text-sm font-semibold text-white mb-1">Lossless Clip Export</h2>
-        <p className="text-xs text-gray-500 mb-4">Stream copy — no transcoding, no quality loss</p>
+    <Dialog width="360px">
+      <DialogTitle>Lossless Clip Export</DialogTitle>
+      <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 16px' }}>
+        Stream copy — no transcoding, no quality loss
+      </p>
 
-        <div className="bg-gray-800 rounded p-3 mb-4 space-y-2">
-          <div className="flex justify-between text-xs">
-            <span className="text-gray-500">Name</span>
-            <span className="text-gray-300">{marker.name}</span>
-          </div>
-          <div className="flex justify-between text-xs border-t border-gray-700 pt-2">
-            <span className="text-gray-500">Duration</span>
-            <span className="text-white font-mono font-medium">{formatDuration(clipDurationMs)}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-gray-500">Est. size</span>
-            <span className="text-white font-medium">{formatFileSize(estimatedBytes)}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-gray-500">Format</span>
-            <span className="text-gray-300">.{ext} (stream copy)</span>
-          </div>
-        </div>
-
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={onCancel} className="flex-1 text-xs">Cancel</Button>
-          <Button variant="primary" onClick={onConfirm} className="flex-1 text-xs">Choose Location…</Button>
-        </div>
+      <div style={{
+        background: 'var(--bg-raised)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: '6px',
+        overflow: 'hidden',
+        marginBottom: '4px',
+      }}>
+        <ExportRow label="Name"     value={marker.name} />
+        <ExportRow label="Duration" value={formatDuration(clipDurationMs)} mono />
+        <ExportRow label="Est. size" value={formatFileSize(estimatedBytes)} />
+        <ExportRow label="Format"   value={`.${ext} (stream copy)`} last />
       </div>
+
+      <DialogActions>
+        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+        <Button variant="primary" onClick={onConfirm}>Choose Location…</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function ExportRow({ label, value, mono, last }: {
+  label: string; value: string; mono?: boolean; last?: boolean;
+}) {
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      padding: '8px 12px',
+      borderBottom: last ? 'none' : '1px solid var(--border-subtle)',
+    }}>
+      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{label}</span>
+      <span style={{
+        fontSize: '12px', color: 'var(--text-primary)', fontWeight: 500,
+        fontFamily: mono ? 'var(--font-mono)' : undefined,
+      }}>
+        {value}
+      </span>
     </div>
   );
 }

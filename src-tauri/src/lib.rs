@@ -20,24 +20,12 @@ pub struct AppState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let db_path = library::resolve_db_path()
-        .expect("Failed to resolve library database path");
-
-    let conn = db::connection::open(&db_path)
-        .expect("Failed to open library database");
-
-    library::resolve_thumbnails_path()
-        .expect("Failed to create thumbnails directory");
-
-    conn.execute("UPDATE drives SET is_online = 0", [])
-        .expect("Failed to reset drive online status");
-
-    let conn_read = db::connection::open_readonly(&db_path)
-        .expect("Failed to open read-only database connection");
-
-    let conn_index = db::connection::open_for_indexer(&db_path)
-        .expect("Failed to open indexer database connection");
-
+    let db_path = library::resolve_db_path().expect("Failed to resolve library database path");
+    let conn = db::connection::open(&db_path).expect("Failed to open library database");
+    library::resolve_thumbnails_path().expect("Failed to create thumbnails directory");
+    conn.execute("UPDATE drives SET is_online = 0", []).expect("Failed to reset drive online status");
+    let conn_read = db::connection::open_readonly(&db_path).expect("Failed to open read-only connection");
+    let conn_index = db::connection::open_for_indexer(&db_path).expect("Failed to open indexer connection");
     let db = Arc::new(Mutex::new(conn));
     let db_read = Arc::new(Mutex::new(conn_read));
     let db_index = Arc::new(Mutex::new(conn_index));
@@ -45,11 +33,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .manage(AppState {
-            db: Arc::clone(&db),
-            db_read: Arc::clone(&db_read),
-            db_index: Arc::clone(&db_index),
-        })
+        .manage(AppState { db: Arc::clone(&db), db_read: Arc::clone(&db_read), db_index: Arc::clone(&db_index) })
         .manage(commands::indexing::IndexingState::new())
         .invoke_handler(tauri::generate_handler![
             commands::drives::drive_register,
@@ -57,6 +41,7 @@ pub fn run() {
             commands::drives::drive_remove,
             commands::drives::drive_remove_confirm,
             commands::drives::drive_rename,
+            commands::drives::drive_update_media_types,
             commands::indexing::index_start,
             commands::indexing::index_cancel,
             commands::indexing::index_cleanup,
@@ -72,6 +57,7 @@ pub fn run() {
             commands::settings::settings_get_stats,
             commands::settings::settings_get,
             commands::settings::settings_set,
+            commands::settings::settings_get_asset_names,
             commands::settings::settings_delete_orphaned,
             commands::settings::settings_purge_thumbnails,
         ])

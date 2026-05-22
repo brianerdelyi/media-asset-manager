@@ -1,9 +1,11 @@
-// Settings screen — library statistics, thumbnail management, orphaned assets.
+// Settings screen — library statistics, thumbnail management, orphaned assets, theme.
 
 import { useEffect, useState } from 'react';
+import { Moon, Sun, Monitor } from 'lucide-react';
 import { Button } from '../common/Button';
 import { formatFileSize } from '../../utils/formatters';
 import { showToast } from '../../stores/toastStore';
+import { useThemeStore, type ThemeMode } from '../../stores/themeStore';
 import {
   getStats, deleteOrphanedAssets, purgeThumbnails,
   type LibraryStats,
@@ -16,6 +18,7 @@ export function SettingsView() {
   const [loading, setLoading] = useState(true);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
   const [working, setWorking] = useState(false);
+  const { mode, setMode } = useThemeStore();
 
   useEffect(() => { loadStats(); }, []);
 
@@ -59,163 +62,282 @@ export function SettingsView() {
     }
   }
 
+  const themeOptions: { value: ThemeMode; label: string; icon: React.ReactNode }[] = [
+    { value: 'system', label: 'System', icon: <Monitor size={13} /> },
+    { value: 'light',  label: 'Light',  icon: <Sun size={13} /> },
+    { value: 'dark',   label: 'Dark',   icon: <Moon size={13} /> },
+  ];
+
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="p-6 max-w-xl">
-        <div className="mb-6">
-          <h1 className="text-xl font-semibold text-white">Settings</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Library management and storage</p>
+    <div style={{ height: '100%', overflowY: 'auto' }}>
+      {/* Centered content column — max 640px, responsive padding */}
+      <div style={{ maxWidth: '640px', padding: '24px 24px 48px' }}>
+
+        <div style={{ marginBottom: '24px' }}>
+          <h1 style={{ fontSize: '15px', fontWeight: 500, color: 'var(--text-primary)', margin: '0 0 4px' }}>
+            Settings
+          </h1>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
+            Library management and storage
+          </p>
         </div>
 
+        {/* Appearance */}
+        <Section label="Appearance">
+          <Panel>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div>
+                <p style={{ fontSize: '13px', color: 'var(--text-primary)', margin: '0 0 2px' }}>Theme</p>
+                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0 }}>
+                  Choose light, dark, or follow system setting
+                </p>
+              </div>
+              {/* Theme toggle — each button takes equal width, never truncates */}
+              <div style={{
+                display: 'flex',
+                border: '1px solid var(--border-default)',
+                borderRadius: '6px',
+                overflow: 'hidden',
+              }}>
+                {themeOptions.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setMode(opt.value)}
+                    style={{
+                      flex: 1,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      gap: '5px',
+                      padding: '7px 4px',
+                      fontSize: '12px',
+                      fontWeight: mode === opt.value ? 500 : 400,
+                      background: mode === opt.value ? 'var(--color-accent)' : 'var(--bg-raised)',
+                      color: mode === opt.value ? '#fff' : 'var(--text-secondary)',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'background 0.15s, color 0.15s',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {opt.icon}
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Panel>
+        </Section>
+
         {/* Library Statistics */}
-        <section className="mb-6">
-          <h2 className="text-xs text-gray-500 uppercase tracking-wide mb-3">Library Statistics</h2>
-          <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+        <Section label="Library Statistics">
+          <div style={{
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '8px', overflow: 'hidden',
+            background: 'var(--bg-surface)',
+          }}>
             {loading ? (
-              <div className="p-4 text-sm text-gray-600">Loading...</div>
+              <div style={{ padding: '16px', fontSize: '13px', color: 'var(--text-tertiary)' }}>
+                Loading…
+              </div>
             ) : stats ? (
-              <div className="divide-y divide-gray-800">
-                <StatRow label="Total Assets" value={stats.total_assets.toLocaleString()} />
-                <StatRow label="Video" value={stats.total_video.toLocaleString()} indent />
-                <StatRow label="Image" value={stats.total_image.toLocaleString()} indent />
-                <StatRow label="Audio" value={stats.total_audio.toLocaleString()} indent />
-                <StatRow label="Total Size" value={formatFileSize(stats.total_size_bytes)} />
-                <StatRow label="Thumbnails" value={stats.thumbnail_count.toLocaleString()} />
-                <StatRow label="Markers" value={stats.total_markers.toLocaleString()} />
-                <StatRow label="Tags" value={stats.total_tags.toLocaleString()} />
+              <div>
+                <StatRow label="Total Assets"   value={stats.total_assets.toLocaleString()} />
+                <StatRow label="Video"          value={stats.total_video.toLocaleString()} indent />
+                <StatRow label="Image"          value={stats.total_image.toLocaleString()} indent />
+                <StatRow label="Audio"          value={stats.total_audio.toLocaleString()} indent />
+                <StatRow label="Total Size"     value={formatFileSize(stats.total_size_bytes)} />
+                <StatRow label="Thumbnails"     value={stats.thumbnail_count.toLocaleString()} />
+                <StatRow label="Markers"        value={stats.total_markers.toLocaleString()} />
+                <StatRow label="Tags"           value={stats.total_tags.toLocaleString()} />
                 {stats.orphaned_assets > 0 && (
-                  <StatRow label="Orphaned Assets" value={stats.orphaned_assets.toLocaleString()} highlight="yellow" />
+                  <StatRow label="Orphaned Assets" value={stats.orphaned_assets.toLocaleString()} highlight="warning" />
                 )}
                 {stats.missing_locations > 0 && (
-                  <StatRow label="Missing Files" value={stats.missing_locations.toLocaleString()} highlight="red" />
+                  <StatRow label="Missing Files" value={stats.missing_locations.toLocaleString()} highlight="danger" />
                 )}
               </div>
             ) : (
-              <div className="p-4 text-sm text-gray-600">Failed to load statistics.</div>
+              <div style={{ padding: '16px', fontSize: '13px', color: 'var(--text-tertiary)' }}>
+                Failed to load statistics.
+              </div>
             )}
           </div>
-        </section>
+        </Section>
 
-        {/* Thumbnail Management */}
-        <section className="mb-6">
-          <h2 className="text-xs text-gray-500 uppercase tracking-wide mb-3">Thumbnails</h2>
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm text-gray-200">Purge All Thumbnails</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Deletes all {stats?.thumbnail_count ?? 0} thumbnail files from disk and clears paths in the library.
-                  Thumbnails will be regenerated on next index.
-                </p>
-              </div>
-              {confirmAction === 'purge_thumbnails' ? (
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="text-xs text-gray-400">Are you sure?</span>
-                  <Button variant="danger" onClick={handlePurgeThumbnails} disabled={working} className="text-xs py-1">
-                    {working ? 'Purging...' : 'Yes, purge'}
-                  </Button>
-                  <Button variant="secondary" onClick={() => setConfirmAction(null)} className="text-xs py-1">
-                    Cancel
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="secondary"
-                  onClick={() => setConfirmAction('purge_thumbnails')}
-                  disabled={working || !stats || stats.thumbnail_count === 0}
-                  className="text-xs flex-shrink-0"
-                >
-                  Purge
-                </Button>
-              )}
-            </div>
-          </div>
-        </section>
+        {/* Thumbnails */}
+        <Section label="Thumbnails">
+          <Panel>
+            <ActionRow
+              title="Purge All Thumbnails"
+              description={`Deletes all ${stats?.thumbnail_count ?? 0} thumbnail files from disk. Regenerated on next index.`}
+              confirmKey="purge_thumbnails"
+              confirmAction={confirmAction}
+              confirmLabel="Yes, purge"
+              onRequest={() => setConfirmAction('purge_thumbnails')}
+              onConfirm={handlePurgeThumbnails}
+              onCancel={() => setConfirmAction(null)}
+              disabled={working || !stats || stats.thumbnail_count === 0}
+              working={working}
+              buttonVariant="secondary"
+              buttonLabel="Purge"
+            />
+          </Panel>
+        </Section>
 
         {/* Orphaned Assets */}
-        <section className="mb-6">
-          <h2 className="text-xs text-gray-500 uppercase tracking-wide mb-3">Orphaned Assets</h2>
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm text-gray-200">Delete Orphaned Assets</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {stats?.orphaned_assets
-                    ? `${stats.orphaned_assets} asset${stats.orphaned_assets !== 1 ? 's have' : ' has'} no drive location and cannot be accessed.`
-                    : 'No orphaned assets found.'}
-                  {' '}Markers and tags will also be removed.
-                </p>
-              </div>
-              {confirmAction === 'delete_orphaned' ? (
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="text-xs text-gray-400">Are you sure?</span>
-                  <Button variant="danger" onClick={handleDeleteOrphaned} disabled={working} className="text-xs py-1">
-                    {working ? 'Deleting...' : 'Yes, delete'}
-                  </Button>
-                  <Button variant="secondary" onClick={() => setConfirmAction(null)} className="text-xs py-1">
-                    Cancel
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="danger"
-                  onClick={() => setConfirmAction('delete_orphaned')}
-                  disabled={working || !stats || stats.orphaned_assets === 0}
-                  className="text-xs flex-shrink-0"
-                >
-                  Delete
-                </Button>
-              )}
-            </div>
-          </div>
-        </section>
+        <Section label="Orphaned Assets">
+          <Panel>
+            <ActionRow
+              title="Delete Orphaned Assets"
+              description={
+                stats?.orphaned_assets
+                  ? `${stats.orphaned_assets} asset${stats.orphaned_assets !== 1 ? 's have' : ' has'} no drive location. Markers and tags will also be removed.`
+                  : 'No orphaned assets found.'
+              }
+              confirmKey="delete_orphaned"
+              confirmAction={confirmAction}
+              confirmLabel="Yes, delete"
+              onRequest={() => setConfirmAction('delete_orphaned')}
+              onConfirm={handleDeleteOrphaned}
+              onCancel={() => setConfirmAction(null)}
+              disabled={working || !stats || stats.orphaned_assets === 0}
+              working={working}
+              buttonVariant="danger"
+              buttonLabel="Delete"
+            />
+          </Panel>
+        </Section>
 
-        {/* Storage Paths */}
-        <section>
-          <h2 className="text-xs text-gray-500 uppercase tracking-wide mb-3">Storage</h2>
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-2">
-            <div>
-              <p className="text-xs text-gray-500 mb-0.5">Library Database</p>
-              <p className="text-xs text-gray-400 font-mono break-all">
-                ~/Library/Application Support/media-asset-manager/library.db
-              </p>
+        {/* Storage */}
+        <Section label="Storage">
+          <Panel>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <StoragePath
+                label="Library Database"
+                path="~/Library/Application Support/media-asset-manager/library.db"
+              />
+              <StoragePath
+                label="Thumbnails"
+                path="~/Library/Application Support/media-asset-manager/thumbnails/"
+              />
             </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-0.5">Thumbnails</p>
-              <p className="text-xs text-gray-400 font-mono break-all">
-                ~/Library/Application Support/media-asset-manager/thumbnails/
-              </p>
-            </div>
-          </div>
-        </section>
+          </Panel>
+        </Section>
+
       </div>
     </div>
   );
 }
 
-function StatRow({
-  label,
-  value,
-  indent = false,
-  highlight,
-}: {
-  label: string;
-  value: string;
-  indent?: boolean;
-  highlight?: 'yellow' | 'red';
+// ── Sub-components ─────────────────────────────────────────────
+
+function Section({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: '24px' }}>
+      <p style={{
+        fontSize: '11px', color: 'var(--text-secondary)',
+        textTransform: 'uppercase', letterSpacing: '0.06em',
+        margin: '0 0 8px',
+      }}>
+        {label}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+function Panel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      background: 'var(--bg-surface)',
+      border: '1px solid var(--border-subtle)',
+      borderRadius: '8px', padding: '14px 16px',
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function StatRow({ label, value, indent = false, highlight }: {
+  label: string; value: string;
+  indent?: boolean; highlight?: 'warning' | 'danger';
 }) {
   return (
-    <div className="flex items-center justify-between px-4 py-2.5">
-      <span className={`text-sm ${indent ? 'text-gray-500 pl-3' : 'text-gray-300'}`}>
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '8px 16px',
+      borderBottom: '1px solid var(--border-subtle)',
+    }}>
+      <span style={{
+        fontSize: '13px', color: 'var(--text-secondary)',
+        paddingLeft: indent ? '12px' : 0,
+        flexShrink: 0,
+      }}>
         {label}
       </span>
-      <span className={`text-sm font-medium ${
-        highlight === 'yellow' ? 'text-yellow-400' :
-        highlight === 'red' ? 'text-red-400' :
-        'text-gray-200'
-      }`}>
+      <span style={{
+        fontSize: '13px', fontWeight: 500,
+        color: highlight === 'warning' ? 'var(--status-orphaned)' :
+               highlight === 'danger'  ? 'var(--status-missing)'  :
+               'var(--text-primary)',
+        marginLeft: '16px',
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}>
         {value}
       </span>
+    </div>
+  );
+}
+
+function ActionRow({
+  title, description, confirmKey, confirmAction, confirmLabel,
+  onRequest, onConfirm, onCancel,
+  disabled, working, buttonVariant, buttonLabel,
+}: {
+  title: string; description: string;
+  confirmKey: string; confirmAction: string | null; confirmLabel: string;
+  onRequest: () => void; onConfirm: () => void; onCancel: () => void;
+  disabled: boolean; working: boolean;
+  buttonVariant: 'secondary' | 'danger'; buttonLabel: string;
+}) {
+  const isConfirming = confirmAction === confirmKey;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div>
+        <p style={{ fontSize: '13px', color: 'var(--text-primary)', margin: '0 0 2px' }}>{title}</p>
+        <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0 }}>{description}</p>
+      </div>
+      {isConfirming ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Are you sure?</span>
+          <Button variant="danger" size="sm" onClick={onConfirm} disabled={working}>
+            {working ? 'Working…' : confirmLabel}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
+        </div>
+      ) : (
+        <div>
+          <Button variant={buttonVariant} size="sm" onClick={onRequest} disabled={disabled}>
+            {buttonLabel}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StoragePath({ label, path }: { label: string; path: string }) {
+  return (
+    <div>
+      <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 3px' }}>{label}</p>
+      <p style={{
+        fontSize: '11px', color: 'var(--text-tertiary)',
+        fontFamily: 'var(--font-mono)',
+        margin: 0, wordBreak: 'break-all',
+        lineHeight: 1.5,
+      }}>
+        {path}
+      </p>
     </div>
   );
 }
