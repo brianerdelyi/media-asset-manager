@@ -72,15 +72,21 @@ Sprints 1–9 complete. App is feature-complete for preview. Sprint 10 planned.
 
 ## Backlog — Features
 
-- [ ] **Cue Word Auto-Marking** — after transcription, scan transcript for user-defined cue words
-  (e.g. "mark video") and automatically create markers at those timestamps.
-  - Cue words are managed in Settings as a named list (e.g. name: "Film Marker", phrase: "mark video")
-  - Multiple cue words supported
-  - Auto-marking can be triggered manually after transcription or optionally run automatically on transcription completion
-  - Generated markers are named: cue word name + sequence number (e.g. "Film Marker 1", "Film Marker 2")
-  - Markers created are identical to manually created markers — editable, deletable, exportable as clips
-  - Fuzzy matching option (future) to catch near-matches e.g. "mark the video"
-  - Depends on: transcription feature (Sprint 10D/10E)
+- [ ] **Keyword Auto-Marking** — after transcription, scan transcript for user-defined keywords
+  and automatically create markers at those timestamps.
+  - **Keyword** — a named phrase the user speaks during recording to trigger marker creation
+    (e.g. keyword phrase: "mark video"). Managed in Settings as a list.
+  - Multiple keywords supported; each keyword has a name and a trigger phrase
+  - Auto-Marking can be triggered manually after transcription completes, or optionally
+    run automatically on transcription completion (user preference)
+  - Generated markers are named **"Auto-Marker #"** (e.g. Auto-Marker 1, Auto-Marker 2)
+    in chronological order across all matched keywords in the asset
+  - Auto-Markers are identical to manually created markers — editable, deletable,
+    exportable as clips, visible on timeline
+  - Auto-Markers are searchable/filterable in the library (filter by marker name "Auto-Marker")
+  - Future: fuzzy matching to catch near-matches (e.g. "mark the video", "mark it")
+  - Future: per-keyword marker naming (e.g. keyword "chapter mark" → "Chapter 1")
+  - Depends on: transcription feature complete (Sprint 10D/10E)
 
 - [ ] **Transcoded clip export** — H.264/HEVC via macOS VideoToolbox (LGPL-compatible)
 - [ ] **LGPL FFmpeg bundling** — remove Homebrew dependency (moved to Sprint 10F)
