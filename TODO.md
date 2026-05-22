@@ -72,6 +72,16 @@ Sprints 1–9 complete. App is feature-complete for preview. Sprint 10 planned.
 
 ## Backlog — Features
 
+- [ ] **Cue Word Auto-Marking** — after transcription, scan transcript for user-defined cue words
+  (e.g. "mark video") and automatically create markers at those timestamps.
+  - Cue words are managed in Settings as a named list (e.g. name: "Film Marker", phrase: "mark video")
+  - Multiple cue words supported
+  - Auto-marking can be triggered manually after transcription or optionally run automatically on transcription completion
+  - Generated markers are named: cue word name + sequence number (e.g. "Film Marker 1", "Film Marker 2")
+  - Markers created are identical to manually created markers — editable, deletable, exportable as clips
+  - Fuzzy matching option (future) to catch near-matches e.g. "mark the video"
+  - Depends on: transcription feature (Sprint 10D/10E)
+
 - [ ] **Transcoded clip export** — H.264/HEVC via macOS VideoToolbox (LGPL-compatible)
 - [ ] **LGPL FFmpeg bundling** — remove Homebrew dependency (moved to Sprint 10F)
 - [ ] Tag management screen — rename and delete tags globally
