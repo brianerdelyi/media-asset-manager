@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Media Asset Manager</title>
+  <meta name="description" content="A local-first desktop app for indexing, tagging, and searching media assets on removable drives. Built for macOS with Tauri, React, and SQLite.">
+  <meta property="og:title" content="Media Asset Manager">
+  <meta property="og:description" content="Local-first media asset management for macOS. Index your drives, browse your footage, mark your clips.">
+  <meta property="og:type" content="website">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0A0A0A;
+      --surface:   #141414;
+      --raised:    #1C1C1C;
+      --border:    rgba(255,255,255,0.08);
+      --accent:    #0A84FF;
+      --green:     #30D158;
+      --purple:    #BF5AF2;
+      --text:      #F2F2F7;
+      --muted:     #8E8E93;
+      --faint:     #48484A;
+      --radius:    12px;
+      --font:      -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+      --mono:      'SF Mono', 'Menlo', 'Monaco', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Layout ── */
+    .container { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(10,10,10,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 0;
+    }
+    nav .inner {
+      max-width: 880px; margin: 0 auto; padding: 0 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    nav .logo {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 15px; font-weight: 500; color: var(--text);
+    }
+    nav .logo svg { flex-shrink: 0; }
+    nav .links { display: flex; gap: 24px; font-size: 14px; color: var(--muted); }
+    nav .links a { color: var(--muted); transition: color 0.15s; }
+    nav .links a:hover { color: var(--text); text-decoration: none; }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 96px 0 80px;
+      text-align: center;
+    }
+    .hero .badge {
+      display: inline-block;
+      font-size: 12px; font-weight: 500;
+      color: var(--accent);
+      background: rgba(10,132,255,0.12);
+      border: 1px solid rgba(10,132,255,0.25);
+      border-radius: 999px;
+      padding: 4px 12px;
+      margin-bottom: 24px;
+      letter-spacing: 0.02em;
+    }
+    .hero h1 {
+      font-size: clamp(36px, 6vw, 60px);
+      font-weight: 600;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero p {
+      font-size: 18px; color: var(--muted);
+      max-width: 540px; margin: 0 auto 40px;
+      line-height: 1.65;
+    }
+    .hero .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 24px; border-radius: 10px;
+      font-size: 15px; font-weight: 500;
+      transition: opacity 0.15s, transform 0.15s;
+      cursor: pointer;
+    }
+    .btn:hover { opacity: 0.85; transform: translateY(-1px); text-decoration: none; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-secondary { background: var(--raised); color: var(--text); border: 1px solid var(--border); }
+
+    /* ── App icon ── */
+    .icon-wrap {
+      display: flex; justify-content: center;
+      margin: 0 0 64px;
+    }
+    .app-icon {
+      width: 120px; height: 120px;
+      border-radius: 28px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    }
+
+    /* ── Window mockup ── */
+    .window-wrap {
+      margin: 0 0 96px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+    }
+    .window-bar {
+      background: #1a1a1a;
+      padding: 12px 16px;
+      display: flex; align-items: center; gap: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot-red { background: #FF5F57; }
+    .dot-yellow { background: #FFBD2E; }
+    .dot-green { background: #28C840; }
+    .window-body {
+      background: #0e0e0e;
+      display: flex;
+      min-height: 420px;
+    }
+    .win-sidebar {
+      width: 56px; flex-shrink: 0;
+      background: #111;
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      align-items: center;
+      padding: 12px 0; gap: 4px;
+    }
+    .win-nav-item {
+      width: 36px; height: 36px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .win-nav-item.active { background: var(--accent); }
+    .win-nav-icon { width: 18px; height: 18px; opacity: 0.5; }
+    .win-nav-item.active .win-nav-icon { opacity: 1; }
+    .win-content { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .win-toolbar {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .win-search {
+      flex: 1; height: 28px; background: #1c1c1c;
+      border: 1px solid var(--border); border-radius: 6px;
+    }
+    .win-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 10px;
+    }
+    .win-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px; overflow: hidden;
+    }
+    .win-thumb {
+      aspect-ratio: 16/9;
+      background: #1a1a1a;
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+    }
+    .win-thumb-accent { width: 100%; height: 100%; opacity: 0.15; }
+    .win-card-info { padding: 6px 8px; }
+    .win-card-name { height: 8px; background: #333; border-radius: 4px; margin-bottom: 5px; }
+    .win-card-meta { height: 6px; background: #222; border-radius: 4px; width: 60%; }
+    .win-detail {
+      width: 220px; flex-shrink: 0;
+      border-left: 1px solid var(--border);
+      padding: 14px; display: flex; flex-direction: column; gap: 14px;
+    }
+    .win-detail-label {
+      font-size: 9px; color: var(--faint);
+      text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 5px;
+    }
+    .win-meta-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .win-meta-key { height: 6px; background: #222; border-radius: 3px; width: 40%; }
+    .win-meta-val { height: 6px; background: #2a2a2a; border-radius: 3px; width: 35%; }
+    .win-marker {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 8px; background: #1c1c1c; border-radius: 6px;
+    }
+    .win-marker-dot { width: 7px; height: 7px; border-radius: 50%; background: #FF9F0A; flex-shrink: 0; }
+    .win-marker-name { height: 7px; background: #333; border-radius: 3px; flex: 1; }
+
+    /* ── Features ── */
+    .section { padding: 80px 0; }
+    .section-label {
+      font-size: 12px; font-weight: 500; color: var(--accent);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 600; letter-spacing: -0.02em;
+      line-height: 1.15; margin-bottom: 16px;
+    }
+    .section-body { font-size: 17px; color: var(--muted); max-width: 560px; line-height: 1.7; }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 56px;
+    }
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+    .feature-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 16px;
+    }
+    .feature-title { font-size: 15px; font-weight: 500; margin-bottom: 8px; }
+    .feature-desc { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+    /* ── Stack ── */
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+      margin-top: 40px;
+    }
+    .stack-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .stack-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .stack-name { font-size: 14px; font-weight: 500; }
+    .stack-ver { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+
+    /* ── Release ── */
+    .release-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 24px; flex-wrap: wrap;
+    }
+    .release-version {
+      font-size: 13px; color: var(--muted); font-family: var(--mono);
+      margin-bottom: 6px;
+    }
+    .release-title { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+    .release-meta { font-size: 14px; color: var(--muted); }
+    .release-tag {
+      display: inline-block;
+      font-size: 11px; font-weight: 500;
+      background: rgba(48,209,88,0.12);
+      color: var(--green);
+      border: 1px solid rgba(48,209,88,0.25);
+      border-radius: 999px; padding: 3px 10px;
+      margin-left: 8px;
+    }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 0;
+      text-align: center;
+      font-size: 14px; color: var(--faint);
+    }
+    footer a { color: var(--muted); }
+
+    /* ── Divider ── */
+    hr { border: none; border-top: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <div class="inner">
+    <div class="logo">
+      <!-- Inline icon SVG -->
+      <svg width="28" height="28" viewBox="0 0 28 28">
+        <rect width="28" height="28" rx="7" fill="#141820"/>
+        <rect x="5" y="7.5" width="17" height="11" rx="3" fill="#30D158" opacity="0.35"/>
+        <rect x="6.5" y="9" width="17" height="11" rx="3" fill="#BF5AF2" opacity="0.65"/>
+        <rect x="8" y="10.5" width="17" height="11" rx="3" fill="#0A84FF"/>
+      </svg>
+      Media Asset Manager
+    </div>
+    <div class="links">
+      <a href="#features">Features</a>
+      <a href="#stack">Stack</a>
+      <a href="#release">Release</a>
+      <a href="https://github.com/brianerdelyi/media-asset-manager" target="_blank">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="container">
+    <div class="badge">v0.9.0 Preview · macOS ARM64</div>
+    <h1>Your media.<br><span>Always indexed.</span></h1>
+    <p>A local-first desktop app for indexing, tagging, and searching media assets across removable drives. No cloud. No subscriptions. Your footage, under your control.</p>
+    <div class="actions">
+      <a href="https://github.com/brianerdelyi/media-asset-manager/releases/tag/v0.9.0" class="btn btn-primary" target="_blank">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download DMG
+      </a>
+      <a href="https://github.com/brianerdelyi/media-asset-manager" class="btn btn-secondary" target="_blank">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        View on GitHub
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- App icon -->
+<div class="icon-wrap">
+  <svg class="app-icon" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+    <rect width="120" height="120" rx="26" fill="#141820"/>
+    <rect x="18" y="31" width="72" height="45" rx="8" fill="#30D158" opacity="0.35"/>
+    <rect x="24" y="38" width="72" height="45" rx="8" fill="#BF5AF2" opacity="0.65"/>
+    <rect x="30" y="44" width="72" height="45" rx="8" fill="#0A84FF"/>
+  </svg>
+</div>
+
+<!-- Window mockup -->
+<div class="container">
+  <div class="window-wrap">
+    <div class="window-bar">
+      <div class="dot dot-red"></div>
+      <div class="dot dot-yellow"></div>
+      <div class="dot dot-green"></div>
+    </div>
+    <div class="window-body">
+      <!-- Sidebar -->
+      <div class="win-sidebar">
+        <div class="win-nav-item active">
+          <svg class="win-nav-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        </div>
+        <div class="win-nav-item">
+          <svg class="win-nav-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M12 12h.01"/></svg>
+        </div>
+        <div style="flex:1"></div>
+        <div class="win-nav-item">
+          <svg class="win-nav-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+        </div>
+      </div>
+      <!-- Main content -->
+      <div class="win-content">
+        <div class="win-toolbar">
+          <div class="win-search"></div>
+          <div style="width:70px;height:28px;background:#1c1c1c;border:1px solid rgba(255,255,255,0.08);border-radius:6px;"></div>
+          <div style="font-size:11px;color:#48484A;">240 assets</div>
+        </div>
+        <div class="win-grid">
+          <!-- Cards -->
+          <div class="win-card"><div class="win-thumb" style="background:linear-gradient(135deg,#1a1f2e,#0e1a2e);"><div style="width:100%;height:100%;background:#0A84FF;opacity:0.08;"></div></div><div class="win-card-info"><div class="win-card-name" style="width:75%;"></div><div class="win-card-meta"></div></div></div>
+          <div class="win-card"><div class="win-thumb" style="background:linear-gradient(135deg,#1f1a1a,#2e1a1a);"><div style="width:100%;height:100%;background:#FF453A;opacity:0.08;"></div></div><div class="win-card-info"><div class="win-card-name" style="width:55%;"></div><div class="win-card-meta"></div></div></div>
+          <div class="win-card"><div class="win-thumb" style="background:linear-gradient(135deg,#1a2e1a,#1a2e1f);"><div style="width:100%;height:100%;background:#30D158;opacity:0.08;"></div></div><div class="win-card-info"><div class="win-card-name" style="width:80%;"></div><div class="win-card-meta"></div></div></div>
+          <div class="win-card"><div class="win-thumb" style="background:linear-gradient(135deg,#1f1a2e,#1a1a2e);"><div style="width:100%;height:100%;background:#BF5AF2;opacity:0.08;"></div></div><div class="win-card-info"><div class="win-card-name" style="width:65%;"></div><div class="win-card-meta"></div></div></div>
+          <div class="win-card"><div class="win-thumb" style="background:linear-gradient(135deg,#2e1f1a,#2e1a1a);"><div style="width:100%;height:100%;background:#FF9F0A;opacity:0.08;"></div></div><div class="win-card-info"><div class="win-card-name" style="width:70%;"></div><div class="win-card-meta"></div></div></div>
+          <div class="win-card"><div class="win-thumb" style="background:linear-gradient(135deg,#1a2e2e,#1a2a2e);"><div style="width:100%;height:100%;background:#0A84FF;opacity:0.08;"></div></div><div class="win-card-info"><div class="win-card-name" style="width:50%;"></div><div class="win-card-meta"></div></div></div>
+        </div>
+      </div>
+      <!-- Detail panel -->
+      <div class="win-detail">
+        <div>
+          <div class="win-detail-label">Asset Name</div>
+          <div style="height:10px;background:#1c3a5a;border-radius:4px;border:1px solid rgba(10,132,255,0.3);"></div>
+        </div>
+        <div>
+          <div class="win-detail-label">Metadata</div>
+          <div class="win-meta-row"><div class="win-meta-key"></div><div class="win-meta-val"></div></div>
+          <div class="win-meta-row"><div class="win-meta-key"></div><div class="win-meta-val" style="width:50%;"></div></div>
+          <div class="win-meta-row"><div class="win-meta-key"></div><div class="win-meta-val" style="width:30%;"></div></div>
+          <div class="win-meta-row"><div class="win-meta-key"></div><div class="win-meta-val" style="width:45%;"></div></div>
+        </div>
+        <div>
+          <div class="win-detail-label">Markers (2)</div>
+          <div style="display:flex;flex-direction:column;gap:5px;">
+            <div class="win-marker"><div class="win-marker-dot"></div><div class="win-marker-name"></div></div>
+            <div class="win-marker"><div class="win-marker-dot"></div><div class="win-marker-name" style="width:55%;"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Features -->
+<section class="section" id="features">
+  <div class="container">
+    <div class="section-label">Features</div>
+    <h2 class="section-title">Everything you need.<br>Nothing you don't.</h2>
+    <p class="section-body">Built for videographers and media professionals who work with large libraries across multiple drives.</p>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(10,132,255,0.12);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0A84FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </div>
+        <div class="feature-title">Fast search</div>
+        <div class="feature-desc">Search across your entire library instantly. Filter by media type, drive, status, and markers.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(48,209,88,0.12);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#30D158" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M12 12h.01"/></svg>
+        </div>
+        <div class="feature-title">Drive management</div>
+        <div class="feature-desc">Register any drive or folder. Online/offline detection happens automatically when you plug in.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(191,90,242,0.12);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#BF5AF2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+        </div>
+        <div class="feature-title">Video playback</div>
+        <div class="feature-desc">Preview your footage inline. Scrub the timeline, set In/Out points, and export lossless clips.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(255,159,10,0.12);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF9F0A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        </div>
+        <div class="feature-title">Markers</div>
+        <div class="feature-desc">Add point and range markers to any asset. Click to seek. Export range markers as lossless clips.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(10,132,255,0.12);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0A84FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        </div>
+        <div class="feature-title">Local-first</div>
+        <div class="feature-desc">SQLite database on your Mac. No cloud sync, no subscriptions, no sending your data anywhere.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(48,209,88,0.12);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#30D158" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+        </div>
+        <div class="feature-title">Light &amp; dark mode</div>
+        <div class="feature-desc">Follows your macOS system preference automatically. Override to light or dark in Settings.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr>
+
+<!-- Stack -->
+<section class="section" id="stack">
+  <div class="container">
+    <div class="section-label">Built with</div>
+    <h2 class="section-title">Modern, native stack.</h2>
+    <p class="section-body">Tauri keeps the binary small and the app fast. React powers the UI. Rust handles everything that needs to be reliable.</p>
+
+    <div class="stack-grid">
+      <div class="stack-item">
+        <div class="stack-dot" style="background:#0A84FF;"></div>
+        <div><div class="stack-name">Tauri 2</div><div class="stack-ver">v2.11</div></div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-dot" style="background:#61DAFB;"></div>
+        <div><div class="stack-name">React 19</div><div class="stack-ver">v19.1</div></div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-dot" style="background:#3178C6;"></div>
+        <div><div class="stack-name">TypeScript</div><div class="stack-ver">v5.8</div></div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-dot" style="background:#FF5733;"></div>
+        <div><div class="stack-name">Rust</div><div class="stack-ver">v1.95</div></div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-dot" style="background:#30D158;"></div>
+        <div><div class="stack-name">SQLite</div><div class="stack-ver">WAL mode</div></div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-dot" style="background:#FF9F0A;"></div>
+        <div><div class="stack-name">FFmpeg</div><div class="stack-ver">v8.1</div></div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-dot" style="background:#646CFF;"></div>
+        <div><div class="stack-name">Vite 7</div><div class="stack-ver">v7.0</div></div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-dot" style="background:#BF5AF2;"></div>
+        <div><div class="stack-name">Zustand 5</div><div class="stack-ver">v5.0</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr>
+
+<!-- Release -->
+<section class="section" id="release">
+  <div class="container">
+    <div class="section-label">Download</div>
+    <h2 class="section-title">Preview release.</h2>
+    <p class="section-body" style="margin-bottom:40px;">Requires macOS on Apple Silicon (M1 or later). FFmpeg must be installed via Homebrew.</p>
+
+    <div class="release-card">
+      <div>
+        <div class="release-version">com.brianerdelyi.mediaassetmanager</div>
+        <div class="release-title">
+          Media Asset Manager
+          <span class="release-tag">Preview</span>
+        </div>
+        <div class="release-meta">v0.9.0 · macOS ARM64 · 2026-05-22</div>
+        <div style="margin-top:12px;font-size:13px;color:var(--faint);">
+          Requires: macOS 12+ · Apple Silicon · <code style="font-family:var(--mono);background:#1c1c1c;padding:2px 5px;border-radius:4px;">brew install ffmpeg</code>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;flex-shrink:0;">
+        <a href="https://github.com/brianerdelyi/media-asset-manager/releases/tag/v0.9.0" class="btn btn-primary" target="_blank">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download DMG
+        </a>
+        <a href="https://github.com/brianerdelyi/media-asset-manager" class="btn btn-secondary" target="_blank">View Source</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="container">
+    <p>Media Asset Manager · Built by <a href="https://github.com/brianerdelyi" target="_blank">Brian Erdelyi</a> · <a href="https://github.com/brianerdelyi/media-asset-manager" target="_blank">GitHub</a></p>
+    <p style="margin-top:8px;">macOS ARM64 · Tauri · React · Rust · SQLite</p>
+  </div>
+</footer>
+
+</body>
+</html>
