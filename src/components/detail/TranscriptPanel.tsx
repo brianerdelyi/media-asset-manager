@@ -1,8 +1,8 @@
 // TranscriptPanel — scrollable timestamped segments with click-to-seek.
-// Active segment highlights as video plays. Copy button copies plain text.
+// Active segment highlights as video plays. Copy and delete actions in header.
 
-import { useEffect, useRef } from 'react';
-import { Copy, RotateCcw } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Copy, Trash2 } from 'lucide-react';
 import type { Transcript, TranscriptSegment } from '../../commands/transcription';
 import { showToast } from '../../stores/toastStore';
 
@@ -11,6 +11,7 @@ interface TranscriptPanelProps {
   currentMs: number;
   onSeek: (ms: number) => void;
   onRetranscribe: () => void;
+  onDelete: () => void;
 }
 
 function formatTimestamp(ms: number): string {
@@ -31,12 +32,12 @@ function getActiveSegmentIndex(segments: TranscriptSegment[], currentMs: number)
   return -1;
 }
 
-export function TranscriptPanel({ transcript, currentMs, onSeek, onRetranscribe }: TranscriptPanelProps) {
+export function TranscriptPanel({ transcript, currentMs, onSeek, onRetranscribe, onDelete }: TranscriptPanelProps) {
   const activeIndex = getActiveSegmentIndex(transcript.segments, currentMs);
   const activeRef = useRef<HTMLButtonElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // Auto-scroll active segment into view
   useEffect(() => {
     if (activeRef.current && containerRef.current) {
       const container = containerRef.current;
@@ -63,28 +64,50 @@ export function TranscriptPanel({ transcript, currentMs, onSeek, onRetranscribe 
   const detectedLang = transcript.detected_lang ?? transcript.language ?? '';
   const subtitle = [transcript.model, detectedLang].filter(Boolean).join(' · ');
 
+  const BTN: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: '3px',
+    fontSize: '11px', color: 'var(--text-tertiary)',
+    background: 'none', border: 'none', cursor: 'pointer', padding: '2px',
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+
       {/* Header row */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>
           Transcript
         </p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <button onClick={copyTranscript} title="Copy transcript"
-            style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {/* Copy */}
+          <button onClick={copyTranscript} title="Copy transcript" style={BTN}
             onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-secondary)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}
-          >
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}>
             <Copy size={11} />
           </button>
-          <button onClick={onRetranscribe} title="Re-transcribe"
-            style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}
-            onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-secondary)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}
-          >
-            <RotateCcw size={11} />
-          </button>
+
+          {/* Delete — two-step confirm */}
+          {confirmDelete ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Delete?</span>
+              <button
+                onClick={() => { setConfirmDelete(false); onDelete(); }}
+                style={{ fontSize: '10px', color: 'var(--color-danger)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}>
+                Yes
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                style={{ fontSize: '10px', color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}>
+                No
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmDelete(true)} title="Delete transcript" style={BTN}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-danger)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}>
+              <Trash2 size={11} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -101,15 +124,12 @@ export function TranscriptPanel({ transcript, currentMs, onSeek, onRetranscribe 
           No speech detected in this clip.
         </p>
       ) : (
-        <div
-          ref={containerRef}
-          style={{ maxHeight: '220px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1px' }}
-        >
+        <div ref={containerRef}
+          style={{ maxHeight: '220px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1px' }}>
           {transcript.segments.map((seg, i) => {
             const isActive = i === activeIndex;
             return (
-              <button
-                key={i}
+              <button key={i}
                 ref={isActive ? activeRef : undefined}
                 onClick={() => onSeek(seg.start_ms)}
                 style={{
@@ -129,10 +149,7 @@ export function TranscriptPanel({ transcript, currentMs, onSeek, onRetranscribe 
                 }}>
                   {formatTimestamp(seg.start_ms)}
                 </span>
-                <span style={{
-                  fontSize: '12px', lineHeight: 1.5,
-                  color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
-                }}>
+                <span style={{ fontSize: '12px', lineHeight: 1.5, color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
                   {seg.text}
                 </span>
               </button>

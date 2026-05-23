@@ -100,8 +100,8 @@ export const useTranscriptionStore = create<TranscriptionStore>((set, get) => ({
     if (job) {
       const assetId = job.assetId;
 
-      // Poll DB every 3s — fallback when event is missed or job completes
-      // faster than the progress loop catches up
+      // Poll DB every 3s as fallback — in case transcription:complete event
+      // is missed (e.g. very fast short clip completes before listener is ready)
       const poll = setInterval(async () => {
         const current = useTranscriptionStore.getState().activeJob;
         if (!current || current.assetId !== assetId) {
@@ -112,18 +112,11 @@ export const useTranscriptionStore = create<TranscriptionStore>((set, get) => ({
           const transcript = await transcriptionGet(assetId);
           if (transcript) {
             clearInterval(poll);
-            // Jump to 100% briefly so the bar is visible, then clear
-            useTranscriptionStore.setState(state => ({
-              activeJob: state.activeJob ? { ...state.activeJob, percent: 100 } : null,
-            }));
-            setTimeout(() => {
-              useTranscriptionStore.setState({ activeJob: null });
-            }, 800);
+            useTranscriptionStore.setState({ activeJob: null });
           }
         } catch (_) {}
       }, 3000);
 
-      // Stop after 3 hours max
       setTimeout(() => clearInterval(poll), 3 * 60 * 60 * 1000);
     }
   },
@@ -148,13 +141,7 @@ export function setupTranscriptionListeners() {
   });
 
   listen('transcription:complete', () => {
-    // Jump to 100% briefly so the bar is visible on fast completions
-    useTranscriptionStore.setState(state => ({
-      activeJob: state.activeJob ? { ...state.activeJob, percent: 100 } : null,
-    }));
-    setTimeout(() => {
-      useTranscriptionStore.setState({ activeJob: null });
-    }, 800);
+    useTranscriptionStore.setState({ activeJob: null });
     useTranscriptionStore.getState().fetchModels();
   });
 

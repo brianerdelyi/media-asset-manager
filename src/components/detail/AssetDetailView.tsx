@@ -19,7 +19,7 @@ import { openAsset, revealAsset } from '../../commands/assets';
 import { deleteMarker, updateMarker } from '../../commands/markers';
 import { getSetting, setSetting } from '../../commands/settings';
 import { setAssetTags } from '../../commands/tags';
-import { transcriptionGet, transcriptionStart } from '../../commands/transcription';
+import { transcriptionGet, transcriptionStart, transcriptionDelete } from '../../commands/transcription';
 import { useLibraryStore } from '../../stores/libraryStore';
 import { useTranscriptionStore } from '../../stores/transcriptionStore';
 import { listen } from '@tauri-apps/api/event';
@@ -101,7 +101,6 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
   const filename = asset.locations[0]?.filename ?? '';
   const canTranscribe = (asset.media_type === 'video' || asset.media_type === 'audio') && !!onlineLoc;
 
-  // Is this specific asset currently being transcribed?
   const isTranscribing = activeJob?.assetId === asset.id;
 
   // Load settings and transcript on mount
@@ -112,15 +111,14 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
     transcriptionGet(asset.id).then(t => setTranscript(t)).catch(() => {});
   }, [asset.id]);
 
-  // Reload transcript when job for THIS asset clears — covers both
-  // the Tauri event path and the polling fallback path
+  // Reload transcript when job for THIS asset clears
   useEffect(() => {
     if (!isTranscribing && !transcript) {
       transcriptionGet(asset.id).then(t => { if (t) setTranscript(t); }).catch(() => {});
     }
   }, [isTranscribing]);
 
-  // Also listen for Tauri transcription:complete event directly
+  // Listen for Tauri transcription:complete event
   useEffect(() => {
     const unlisten = listen<{ asset_id: string }>('transcription:complete', (e) => {
       if (e.payload.asset_id === asset.id) {
@@ -196,8 +194,7 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
 
   async function handleStartTranscription(model: string, language: string, prompt: string) {
     setTxDialogOpen(false);
-    // Clear any existing transcript so the button shows while transcribing
-    setTranscript(null);
+    setTranscript(null); // Clear so UI shows transcribing state
     try {
       const result = await transcriptionStart(asset.id, model, language, prompt);
       setActiveJob({ jobId: result.job_id, assetId: asset.id, percent: 0 });
@@ -206,12 +203,18 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
     }
   }
 
-  // Transcript button state
+  async function handleDeleteTranscript() {
+    try {
+      await transcriptionDelete(asset.id);
+      setTranscript(null);
+    } catch (e) {
+      console.error('Failed to delete transcript:', e);
+    }
+  }
+
   const txButtonDisabled = !onlineLoc || isTranscribing;
   const txButtonLabel = isTranscribing
     ? 'Transcribing…'
-    : transcript
-    ? 'Re-transcribe'
     : installedModels.length === 0
     ? 'No model — see Settings'
     : 'Generate Transcript';
@@ -361,6 +364,7 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
                 currentMs={currentMs}
                 onSeek={ms => videoRef.current?.seekTo(ms)}
                 onRetranscribe={() => setTxDialogOpen(true)}
+                onDelete={handleDeleteTranscript}
               />
             ) : (
               <div>

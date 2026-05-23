@@ -1,7 +1,7 @@
 // Settings screen — library statistics, thumbnail management, orphaned assets, theme, transcription.
 
 import { useEffect, useState } from 'react';
-import { Moon, Sun, Monitor, Download, Trash2, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { Moon, Sun, Monitor, Download, Trash2, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '../common/Button';
 import { formatFileSize } from '../../utils/formatters';
 import { showToast } from '../../stores/toastStore';
@@ -88,11 +88,6 @@ export function SettingsView() {
     }
   }
 
-  async function handleRefreshModels() {
-    await fetchModels();
-    showToast('Model list refreshed.', 'info');
-  }
-
   const themeOptions: { value: ThemeMode; label: string; icon: React.ReactNode }[] = [
     { value: 'system', label: 'System', icon: <Monitor size={13} /> },
     { value: 'light',  label: 'Light',  icon: <Sun size={13} /> },
@@ -169,18 +164,7 @@ export function SettingsView() {
 
               {/* Models */}
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                  <p style={{ fontSize: '13px', color: 'var(--text-primary)', margin: 0, fontWeight: 500 }}>Models</p>
-                  <button
-                    onClick={handleRefreshModels}
-                    title="Refresh model list"
-                    style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
-                    onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-secondary)')}
-                    onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}
-                  >
-                    <RefreshCw size={11} /> Refresh
-                  </button>
-                </div>
+                <p style={{ fontSize: '13px', color: 'var(--text-primary)', margin: '0 0 4px', fontWeight: 500 }}>Models</p>
                 <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 10px' }}>
                   Stored in ~/Library/Application Support/media-asset-manager/models/
                 </p>

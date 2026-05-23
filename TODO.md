@@ -1,50 +1,22 @@
 # TODO
 
-> Last updated: 2026-05-22 — v0.9.0 Preview
+> Last updated: 2026-05-23 — v0.9.1 dev
 
 ---
 
 ## Current Status
 
-**Version:** 0.9.0 Preview  
-**Branch:** `dev`  
-**Platform:** macOS ARM64  
+**Version:** 0.9.1 dev
+**Branch:** `dev`
+**Platform:** macOS ARM64
 
-Sprints 1–9 complete. Sprint 10A and 10B complete. Sprint 11 ready to begin.
+Sprints 1–12 complete. Transcription foundation and UI fully working.
+Next: Sprint 13 — UI polish pass, then 1.0.0 release candidate.
 
 ---
 
-## Sprint 10 — Tags, Asset Metadata, and Transcription
+## Sprint 13 — 1.0.0 Release Candidate
 
-### 10A — Tags ✅ Complete
-### 10B — Asset Metadata Fields ✅ Complete
-
-### 10C — Model Management (Sprint 11)
-- [ ] Migration 004 — `transcripts` table + `transcript_fts` FTS5 index
-- [ ] `model_list`, `model_download`, `model_delete` commands
-- [ ] Models section in Settings — download/delete with progress
-- [ ] Model storage: `~/Library/Application Support/media-asset-manager/models/`
-- [ ] whisper-cli environment detection
-
-### 10D — Transcription Job (Sprint 11)
-- [ ] whisper-cli integration — FFmpeg audio extraction + transcription pipeline
-- [ ] `transcription_start`, `transcription_cancel`, `transcription_get`, `transcription_delete` commands
-- [ ] `transcription_estimate` command — estimated duration based on model RTF
-- [ ] `TranscriptionOptionsDialog` — model, language, prompt, duration estimate
-- [ ] "Generate Transcript" button in asset detail pane
-- [ ] Background transcription with status bar progress and cancel
-- [ ] Toast on completion and cancellation
-- [ ] "No model installed" state handling
-
-### 10E — Transcript Display + Search (Sprint 12)
-- [ ] `TranscriptPanel` — scrollable timestamped segments
-- [ ] Click segment → seek video to timestamp
-- [ ] Highlight active segment during playback
-- [ ] "Copy transcript" button
-- [ ] "Re-transcribe" button when transcript exists
-- [ ] Extend library search to query `transcript_fts`
-
-### 10F — Release Candidate (1.0.0)
 - [ ] Bundle LGPL FFmpeg binary — remove Homebrew dependency
 - [ ] Bundle whisper-cli binary — remove Homebrew dependency for transcription
 - [ ] Universal binary build (ARM64 + Intel)
@@ -63,26 +35,18 @@ Sprints 1–9 complete. Sprint 10A and 10B complete. Sprint 11 ready to begin.
   with preset model, language, and initial prompt. Selected from the
   TranscriptionOptionsDialog instead of re-entering settings each time.
   Profiles stored in the `settings` table. Managed in Settings screen.
-  Depends on: transcription feature complete (Sprint 11/12).
-
-- [ ] **Filter panel — dynamic faceted counts (Option B)** — update filter
-  option counts dynamically as filters change. Currently Option A (static
-  total counts). Deferred — consider for post-1.0.0.
 
 - [ ] **Keyword Auto-Marking** — after transcription, scan transcript for
   user-defined keywords and automatically create markers at those timestamps.
-  - **Keyword** — a named phrase spoken during recording (e.g. "mark video")
-  - Multiple keywords supported; each has a name and trigger phrase
-  - Managed in Settings as a named list
-  - Auto-Marking triggered manually or automatically on transcription completion
-  - Generated markers named **"Auto-Marker #"** in chronological order
-  - Auto-Markers identical to manual markers — editable, deletable, exportable
-  - Future: fuzzy matching for near-matches
-  - Depends on: transcription complete (Sprint 11/12)
+  - Keyword phrases managed in Settings (e.g. "mark video")
+  - Generated markers named "Auto-Marker #" in chronological order
+  - Identical to manual markers — editable, deletable, exportable
+  - Depends on: transcription complete ✅
 
-- [ ] **Transcoded clip export** — H.264/HEVC via macOS VideoToolbox (LGPL-compatible)
-- [ ] **LGPL FFmpeg bundling** — remove Homebrew FFmpeg dependency
-- [ ] **whisper-cli bundling** — remove Homebrew whisper-cpp dependency
+- [ ] **Filter panel — dynamic faceted counts (Option B)** — counts update
+  as filters change. Currently Option A (static totals). Post-1.0.0.
+
+- [ ] **Transcoded clip export** — H.264/HEVC via macOS VideoToolbox
 - [ ] Tag management screen — rename and delete tags globally
 - [ ] Batch export — export multiple clips in one operation
 - [ ] Collection / project grouping
@@ -121,7 +85,6 @@ Sprints 1–9 complete. Sprint 10A and 10B complete. Sprint 11 ready to begin.
 - App requires Homebrew FFmpeg until LGPL binary is bundled
 - App requires Homebrew whisper-cpp until sidecar binary is bundled
 - No Apple notarization — users see "unidentified developer" warning on first launch
-- `pnpm tauri icon` not yet run — app icon uses placeholder
 
 ---
 
@@ -138,3 +101,6 @@ Sprints 1–9 complete. Sprint 10A and 10B complete. Sprint 11 ready to begin.
 - [x] Sprint 9 — Version bump, production build, GitHub Pages site, git tagging
 - [x] Sprint 10A — Tags — backend + UI (Notion/Linear pattern)
 - [x] Sprint 10B — Asset metadata fields — Description + Location
+- [x] Sprint 11 — Transcription foundation: whisper-cli, model management, DB migration
+- [x] Sprint 12 — Transcription UI: options dialog, transcript panel, progress bar,
+                   delete transcript, real progress from stdout timestamps, search integration
