@@ -7,7 +7,7 @@ use crate::models::asset::{
 };
 
 /// Search assets with filters, sorting, and pagination.
-/// Searches filename, asset_name, asset_description, and asset_location settings.
+/// Searches filename, asset_name, description, location settings, and transcript FTS.
 pub fn search_assets(
     conn: &Connection,
     filters: &AssetSearchFilters,
@@ -20,21 +20,24 @@ pub fn search_assets(
     let mut conditions: Vec<String> = Vec::new();
     let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
-    if let Some(q) = &filters.query {
-        if !q.trim().is_empty() {
-            let pattern = format!("%{}%", q.trim());
-            // Search filename, asset name override, description, and location
-            conditions.push(
-                "(EXISTS (SELECT 1 FROM locations l WHERE l.asset_id = a.id AND l.filename LIKE ?)
-                  OR EXISTS (SELECT 1 FROM settings s WHERE s.key = 'asset_name:' || a.id AND s.value LIKE ?)
-                  OR EXISTS (SELECT 1 FROM settings s WHERE s.key = 'asset_description:' || a.id AND s.value LIKE ?)
-                  OR EXISTS (SELECT 1 FROM settings s WHERE s.key = 'asset_location:' || a.id AND s.value LIKE ?))".to_string(),
-            );
-            params_vec.push(Box::new(pattern.clone()));
-            params_vec.push(Box::new(pattern.clone()));
-            params_vec.push(Box::new(pattern.clone()));
-            params_vec.push(Box::new(pattern));
-        }
+    // Query string — searches filename, name, description, location, and transcript
+    let query_str = filters.query.as_deref().unwrap_or("").trim().to_string();
+    let has_query = !query_str.is_empty();
+
+    if has_query {
+        let pattern = format!("%{}%", query_str);
+        conditions.push(
+            "(EXISTS (SELECT 1 FROM locations l WHERE l.asset_id = a.id AND l.filename LIKE ?)
+              OR EXISTS (SELECT 1 FROM settings s WHERE s.key = 'asset_name:' || a.id AND s.value LIKE ?)
+              OR EXISTS (SELECT 1 FROM settings s WHERE s.key = 'asset_description:' || a.id AND s.value LIKE ?)
+              OR EXISTS (SELECT 1 FROM settings s WHERE s.key = 'asset_location:' || a.id AND s.value LIKE ?)
+              OR EXISTS (SELECT 1 FROM transcript_fts WHERE transcript_fts MATCH ? AND asset_id = a.id))".to_string(),
+        );
+        params_vec.push(Box::new(pattern.clone()));
+        params_vec.push(Box::new(pattern.clone()));
+        params_vec.push(Box::new(pattern.clone()));
+        params_vec.push(Box::new(pattern));
+        params_vec.push(Box::new(query_str.clone()));
     }
 
     if let Some(types) = &filters.media_types {
@@ -108,13 +111,11 @@ pub fn search_assets(
         None => "ORDER BY a.created_at_fs DESC NULLS LAST".to_string(),
     };
 
-    // Count
     let count_sql = format!("SELECT COUNT(*) FROM assets a {}", where_clause);
     let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
     let total: i64 = conn.query_row(&count_sql, params_refs.as_slice(), |row| row.get(0))
         .map_err(|e| crate::error::AppError::Database(e.to_string()))?;
 
-    // Data
     let data_sql = format!(
         "SELECT
             a.id, a.media_type, a.file_extension, a.file_size, a.duration_ms,
@@ -129,16 +130,15 @@ pub fn search_assets(
         where_clause, sort_clause
     );
 
-    // Rebuild params for data query
+    // Rebuild params for data query (same order)
     let mut data_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
-    if let Some(q) = &filters.query {
-        if !q.trim().is_empty() {
-            let pattern = format!("%{}%", q.trim());
-            data_params.push(Box::new(pattern.clone()));
-            data_params.push(Box::new(pattern.clone()));
-            data_params.push(Box::new(pattern.clone()));
-            data_params.push(Box::new(pattern));
-        }
+    if has_query {
+        let pattern = format!("%{}%", query_str);
+        data_params.push(Box::new(pattern.clone()));
+        data_params.push(Box::new(pattern.clone()));
+        data_params.push(Box::new(pattern.clone()));
+        data_params.push(Box::new(pattern));
+        data_params.push(Box::new(query_str));
     }
     if let Some(types) = &filters.media_types {
         for t in types { data_params.push(Box::new(t.clone())); }

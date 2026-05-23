@@ -4,10 +4,12 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
-import { ArrowLeft, FolderOpen, ExternalLink, Pencil, Download, X, Film, Image, Music } from 'lucide-react';
+import { ArrowLeft, FolderOpen, ExternalLink, Pencil, Download, X, Film, Image, Music, Loader } from 'lucide-react';
 import { VideoPlayer, VideoPlayerHandle } from './VideoPlayer';
 import { MarkerPanel } from './MarkerPanel';
 import { ClipExportConfirm } from './ClipExportConfirm';
+import { TranscriptionOptionsDialog } from './TranscriptionOptionsDialog';
+import { TranscriptPanel } from './TranscriptPanel';
 import { Badge } from '../common/Badge';
 import { Button } from '../common/Button';
 import { TagBadge } from '../common/TagBadge';
@@ -17,8 +19,12 @@ import { openAsset, revealAsset } from '../../commands/assets';
 import { deleteMarker, updateMarker } from '../../commands/markers';
 import { getSetting, setSetting } from '../../commands/settings';
 import { setAssetTags } from '../../commands/tags';
+import { transcriptionGet, transcriptionStart } from '../../commands/transcription';
 import { useLibraryStore } from '../../stores/libraryStore';
+import { useTranscriptionStore } from '../../stores/transcriptionStore';
+import { listen } from '@tauri-apps/api/event';
 import type { AssetDetail, AssetMarker } from '../../types/asset';
+import type { Transcript } from '../../commands/transcription';
 
 interface AssetDetailViewProps {
   asset: AssetDetail;
@@ -45,6 +51,8 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
   const [exportError, setExportError] = useState<string | null>(null);
   const [markerPanelOpen, setMarkerPanelOpen] = useState(false);
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
+  const [txDialogOpen, setTxDialogOpen] = useState(false);
+  const [transcript, setTranscript] = useState<Transcript | null>(null);
 
   const defaultAssetName = (asset.locations[0]?.filename ?? 'clip').replace(/\.[^.]+$/, '');
   const [assetName, setAssetName] = useState(defaultAssetName);
@@ -80,14 +88,46 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
 
   const videoRef = useRef<VideoPlayerHandle>(null);
   const { refreshSelected } = useLibraryStore();
+  const { models, activeJob, setActiveJob, fetchModels } = useTranscriptionStore();
+  const installedModels = models.filter(m => m.installed);
+
+  // Fetch models on mount if store is empty
+  useEffect(() => {
+    if (models.length === 0) fetchModels();
+  }, []);
+
   const onlineLoc = asset.locations.find(l => l.is_online && !l.is_missing);
   const thumbUrl = asset.thumbnail_path ? convertFileSrc(asset.thumbnail_path) : null;
   const filename = asset.locations[0]?.filename ?? '';
+  const canTranscribe = (asset.media_type === 'video' || asset.media_type === 'audio') && !!onlineLoc;
 
+  // Is this specific asset currently being transcribed?
+  const isTranscribing = activeJob?.assetId === asset.id;
+
+  // Load settings and transcript on mount
   useEffect(() => {
     getSetting(`asset_name:${asset.id}`).then(v => { if (v) { setAssetName(v); setAssetNameDraft(v); } }).catch(() => {});
     getSetting(`asset_description:${asset.id}`).then(v => { if (v) { setDescription(v); setDescriptionDraft(v); } }).catch(() => {});
     getSetting(`asset_location:${asset.id}`).then(v => { if (v) { setLocation(v); setLocationDraft(v); } }).catch(() => {});
+    transcriptionGet(asset.id).then(t => setTranscript(t)).catch(() => {});
+  }, [asset.id]);
+
+  // Reload transcript when job for THIS asset clears — covers both
+  // the Tauri event path and the polling fallback path
+  useEffect(() => {
+    if (!isTranscribing && !transcript) {
+      transcriptionGet(asset.id).then(t => { if (t) setTranscript(t); }).catch(() => {});
+    }
+  }, [isTranscribing]);
+
+  // Also listen for Tauri transcription:complete event directly
+  useEffect(() => {
+    const unlisten = listen<{ asset_id: string }>('transcription:complete', (e) => {
+      if (e.payload.asset_id === asset.id) {
+        transcriptionGet(asset.id).then(t => setTranscript(t)).catch(() => {});
+      }
+    });
+    return () => { unlisten.then(fn => fn()); };
   }, [asset.id]);
 
   async function saveAssetName() {
@@ -154,10 +194,41 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
     catch (e) { setExportError(String(e)); } finally { setExportingId(null); }
   }
 
+  async function handleStartTranscription(model: string, language: string, prompt: string) {
+    setTxDialogOpen(false);
+    // Clear any existing transcript so the button shows while transcribing
+    setTranscript(null);
+    try {
+      const result = await transcriptionStart(asset.id, model, language, prompt);
+      setActiveJob({ jobId: result.job_id, assetId: asset.id, percent: 0 });
+    } catch (e) {
+      console.error('Transcription failed to start:', e);
+    }
+  }
+
+  // Transcript button state
+  const txButtonDisabled = !onlineLoc || isTranscribing;
+  const txButtonLabel = isTranscribing
+    ? 'Transcribing…'
+    : transcript
+    ? 'Re-transcribe'
+    : installedModels.length === 0
+    ? 'No model — see Settings'
+    : 'Generate Transcript';
+
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden', background: 'var(--bg-app)' }}>
       {exportTarget && (
         <ClipExportConfirm marker={exportTarget} assetDurationMs={asset.duration_ms ?? 0} assetFileSizeBytes={asset.file_size} fileExtension={asset.file_extension} onConfirm={handleExportConfirmed} onCancel={() => setExportTarget(null)} />
+      )}
+      {txDialogOpen && (
+        <TranscriptionOptionsDialog
+          assetId={asset.id}
+          assetName={assetName}
+          durationMs={asset.duration_ms ?? null}
+          onStart={handleStartTranscription}
+          onCancel={() => setTxDialogOpen(false)}
+        />
       )}
 
       {/* Left — video */}
@@ -259,44 +330,66 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
           )}
         </div>
 
-        {/* Tags — Notion pattern: section label, pills + "+ Add" inline, picker opens below */}
+        {/* Tags */}
         <div>
           <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 8px' }}>Tags</p>
-
-          {/* Applied tags + "+ Add" button on the same line */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center', marginBottom: tagPickerOpen ? '8px' : 0 }}>
             {asset.tags.map(tag => (
-              <TagBadge
-                key={tag.id}
-                tag={tag}
-                onRemove={(tagId) => handleTagsChange(asset.tags.filter(t => t.id !== tagId).map(t => t.id))}
-              />
+              <TagBadge key={tag.id} tag={tag}
+                onRemove={(tagId) => handleTagsChange(asset.tags.filter(t => t.id !== tagId).map(t => t.id))} />
             ))}
             {!tagPickerOpen && (
-              <button
-                onClick={() => setTagPickerOpen(true)}
-                style={{
-                  display: 'inline-flex', alignItems: 'center',
-                  fontSize: '11px', color: 'var(--color-accent)',
-                  background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px',
-                }}
+              <button onClick={() => setTagPickerOpen(true)}
+                style={{ display: 'inline-flex', alignItems: 'center', fontSize: '11px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
                 onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
-                onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-              >
+                onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
                 + Add
               </button>
             )}
           </div>
-
-          {/* Picker opens inline below the pills */}
           {tagPickerOpen && (
-            <TagPicker
-              selectedTagIds={asset.tags.map(t => t.id)}
-              onChange={handleTagsChange}
-              onClose={() => setTagPickerOpen(false)}
-            />
+            <TagPicker selectedTagIds={asset.tags.map(t => t.id)} onChange={handleTagsChange} onClose={() => setTagPickerOpen(false)} />
           )}
         </div>
+
+        {/* Transcript */}
+        {canTranscribe && (
+          <div>
+            {transcript && !isTranscribing ? (
+              <TranscriptPanel
+                transcript={transcript}
+                currentMs={currentMs}
+                onSeek={ms => videoRef.current?.seekTo(ms)}
+                onRetranscribe={() => setTxDialogOpen(true)}
+              />
+            ) : (
+              <div>
+                <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 8px' }}>Transcript</p>
+                <button
+                  onClick={() => { if (!txButtonDisabled && installedModels.length > 0) setTxDialogOpen(true); }}
+                  disabled={txButtonDisabled || installedModels.length === 0}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                    fontSize: '12px',
+                    color: txButtonDisabled || installedModels.length === 0 ? 'var(--text-tertiary)' : 'var(--color-accent)',
+                    background: 'none',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: '6px', padding: '6px 10px',
+                    cursor: txButtonDisabled || installedModels.length === 0 ? 'not-allowed' : 'pointer',
+                    opacity: !onlineLoc ? 0.4 : 1,
+                    width: '100%',
+                  }}
+                  onMouseEnter={e => { if (!txButtonDisabled && installedModels.length > 0) (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-accent)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; }}
+                >
+                  {isTranscribing && <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} />}
+                  {txButtonLabel}
+                </button>
+                <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Metadata */}
         <DetailSection label="Metadata">

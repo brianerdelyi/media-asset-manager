@@ -5,7 +5,7 @@ import { listen } from '@tauri-apps/api/event';
 import type { ModelInfo, WhisperStatus } from '../commands/transcription';
 import {
   checkEnvironment, listModels, downloadModel,
-  deleteModel, transcriptionCancel,
+  deleteModel, transcriptionCancel, transcriptionGet,
 } from '../commands/transcription';
 
 interface ActiveJob {
@@ -17,7 +17,7 @@ interface ActiveJob {
 interface TranscriptionStore {
   whisperStatus: WhisperStatus | null;
   models: ModelInfo[];
-  activeDownloads: Record<string, number>;   // modelName → percent
+  activeDownloads: Record<string, number>;
   activeJob: ActiveJob | null;
 
   fetchEnvironment: () => Promise<void>;
@@ -54,19 +54,15 @@ export const useTranscriptionStore = create<TranscriptionStore>((set, get) => ({
   },
 
   startDownload: async (modelName) => {
-    // Mark as downloading at 0%
     set(state => ({ activeDownloads: { ...state.activeDownloads, [modelName]: 0 } }));
     try {
       await downloadModel(modelName);
-
-      // Poll model list every 2 seconds as fallback in case the
-      // complete event is missed (e.g. listener not yet registered)
+      // Poll every 2s as fallback in case complete event is missed
       const poll = setInterval(async () => {
         const models = await listModels();
         const model = models.find(m => m.name === modelName);
         if (model?.installed) {
           clearInterval(poll);
-          // Clear download progress and update model list
           set(state => {
             const d = { ...state.activeDownloads };
             delete d[modelName];
@@ -74,10 +70,7 @@ export const useTranscriptionStore = create<TranscriptionStore>((set, get) => ({
           });
         }
       }, 2000);
-
-      // Stop polling after 30 minutes regardless
       setTimeout(() => clearInterval(poll), 30 * 60 * 1000);
-
     } catch (e) {
       set(state => {
         const d = { ...state.activeDownloads };
@@ -97,10 +90,43 @@ export const useTranscriptionStore = create<TranscriptionStore>((set, get) => ({
     const job = get().activeJob;
     if (job) {
       await transcriptionCancel(job.jobId);
+      set({ activeJob: null });
     }
   },
 
-  setActiveJob: (job) => set({ activeJob: job }),
+  setActiveJob: (job) => {
+    set({ activeJob: job });
+
+    if (job) {
+      const assetId = job.assetId;
+
+      // Poll DB every 3s — fallback when event is missed or job completes
+      // faster than the progress loop catches up
+      const poll = setInterval(async () => {
+        const current = useTranscriptionStore.getState().activeJob;
+        if (!current || current.assetId !== assetId) {
+          clearInterval(poll);
+          return;
+        }
+        try {
+          const transcript = await transcriptionGet(assetId);
+          if (transcript) {
+            clearInterval(poll);
+            // Jump to 100% briefly so the bar is visible, then clear
+            useTranscriptionStore.setState(state => ({
+              activeJob: state.activeJob ? { ...state.activeJob, percent: 100 } : null,
+            }));
+            setTimeout(() => {
+              useTranscriptionStore.setState({ activeJob: null });
+            }, 800);
+          }
+        } catch (_) {}
+      }, 3000);
+
+      // Stop after 3 hours max
+      setTimeout(() => clearInterval(poll), 3 * 60 * 60 * 1000);
+    }
+  },
 
   updateJobProgress: (jobId, percent) => {
     set(state => {
@@ -111,7 +137,6 @@ export const useTranscriptionStore = create<TranscriptionStore>((set, get) => ({
 }));
 
 // ── Global event listeners ────────────────────────────────────────────────────
-// Called once from App.tsx on mount.
 
 export function setupTranscriptionListeners() {
   listen('transcription:progress', (event: any) => {
@@ -123,7 +148,13 @@ export function setupTranscriptionListeners() {
   });
 
   listen('transcription:complete', () => {
-    useTranscriptionStore.setState({ activeJob: null });
+    // Jump to 100% briefly so the bar is visible on fast completions
+    useTranscriptionStore.setState(state => ({
+      activeJob: state.activeJob ? { ...state.activeJob, percent: 100 } : null,
+    }));
+    setTimeout(() => {
+      useTranscriptionStore.setState({ activeJob: null });
+    }, 800);
     useTranscriptionStore.getState().fetchModels();
   });
 
