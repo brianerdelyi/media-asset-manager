@@ -1,34 +1,38 @@
 # Sprint 11 — Transcription Foundation
 
-**Version:** 1.0
+**Version:** 1.1
 **Date:** 2026-05-22
-**Status:** Planned — begins after Sprint 10 approval
+**Status:** Ready to begin
 **Branch:** `dev`
+**Updated:** Replaced faster-whisper with whisper.cpp (whisper-cli)
 
 ---
 
 ## Goal
 
-Establish the complete transcription infrastructure — database schema, Python environment detection, model download/management, and the background transcription engine. No visible transcript UI yet — this sprint ends with a working transcription job that saves to the database.
+Build the complete transcription infrastructure — database schema, whisper-cli
+integration, model download/management in Settings, and the background
+transcription engine. No transcript display UI yet — this sprint ends with a
+working transcription job that saves timestamped segments to the database.
 
 ---
 
-## Scope
+## Engine: whisper-cli
+
+Binary: `/opt/homebrew/bin/whisper-cli` (dev) / bundled sidecar (production)
+Input: WAV audio — FFmpeg extracts audio from video before transcribing
+Output: JSON with `offsets.from` / `offsets.to` in milliseconds
+
+---
+
+## Milestones
 
 | Milestone | Scope |
 |---|---|
-| 11A | Database migration — transcripts table + FTS5 index |
-| 11B | Python environment detection and validation |
+| 11A | Database migration 003 — transcripts + FTS5 |
+| 11B | whisper-cli detection and validation |
 | 11C | Model management — download, list, delete |
 | 11D | Transcription engine — background job, progress, cancel |
-
----
-
-## Prerequisites
-
-- Sprint 10 complete ✅
-- faster-whisper installed on dev machine: `pip3 install faster-whisper`
-- Python 3.8+ available via Homebrew or system
 
 ---
 
@@ -36,12 +40,12 @@ Establish the complete transcription infrastructure — database schema, Python 
 
 **Update: `src-tauri/src/db/migrations.rs`**
 
-- [ ] Add `migration_003_transcripts`:
+- [ ] Add `migration_004_transcripts` (note: 003 was drive_media_types):
   ```sql
   CREATE TABLE transcripts (
     id            TEXT PRIMARY KEY,
     asset_id      TEXT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-    engine        TEXT NOT NULL,
+    engine        TEXT NOT NULL DEFAULT 'whisper.cpp',
     model         TEXT NOT NULL,
     language      TEXT,
     detected_lang TEXT,
@@ -49,199 +53,155 @@ Establish the complete transcription infrastructure — database schema, Python 
     created_at    INTEGER NOT NULL,
     duration_ms   INTEGER
   );
-
-  CREATE VIRTUAL TABLE transcript_fts USING fts5(
-    asset_id UNINDEXED,
-    text,
-    content='transcripts',
-    tokenize='porter ascii'
-  );
-
-  CREATE TRIGGER transcript_fts_insert AFTER INSERT ON transcripts BEGIN
-    INSERT INTO transcript_fts(rowid, asset_id, text)
-    VALUES (new.rowid, new.asset_id, new.segments);
-  END;
-
-  CREATE TRIGGER transcript_fts_delete AFTER DELETE ON transcripts BEGIN
-    INSERT INTO transcript_fts(transcript_fts, rowid, asset_id, text)
-    VALUES ('delete', old.rowid, old.asset_id, old.segments);
-  END;
-
-  CREATE TRIGGER transcript_fts_update AFTER UPDATE ON transcripts BEGIN
-    INSERT INTO transcript_fts(transcript_fts, rowid, asset_id, text)
-    VALUES ('delete', old.rowid, old.asset_id, old.segments);
-    INSERT INTO transcript_fts(rowid, asset_id, text)
-    VALUES (new.rowid, new.asset_id, new.segments);
-  END;
+  CREATE VIRTUAL TABLE transcript_fts USING fts5(...);
+  -- plus insert/delete/update triggers
   ```
-- [ ] Register migration 003 in `run()`
+- [ ] Register migration in `run()`
 
 ### Acceptance Criteria
 - [ ] App starts without error after migration
-- [ ] `transcripts` table exists in DB
+- [ ] `transcripts` table exists
 - [ ] `transcript_fts` virtual table exists
 
 ---
 
-## 11B — Python Environment Detection
+## 11B — whisper-cli Detection
 
-**New file: `src-tauri/src/transcription/python.rs`**
+**New file: `src-tauri/src/transcription/engine.rs`**
 
-- [ ] `find_python()` — searches in order:
-  1. `/opt/homebrew/bin/python3` (Apple Silicon Homebrew)
-  2. `/usr/local/bin/python3` (Intel Homebrew)
-  3. `~/.pyenv/shims/python3` (pyenv)
-  4. `/usr/bin/python3` (system)
-  5. `python3` (PATH fallback)
-- [ ] `check_faster_whisper(python_path)` — runs `python3 -c "import faster_whisper"`, returns bool
-- [ ] `check_whisper(python_path)` — runs `python3 -c "import whisper"`, returns bool
-- [ ] `get_environment_status()` → `PythonStatus { python_found, python_path, faster_whisper_available, whisper_available }`
+- [ ] `find_whisper_cli()` — searches in order:
+  1. `/opt/homebrew/bin/whisper-cli` (Apple Silicon Homebrew)
+  2. `/usr/local/bin/whisper-cli` (Intel Homebrew)
+  3. `whisper-cli` (PATH fallback)
+- [ ] `check_whisper_cli(path)` — runs `whisper-cli --help`, confirms binary works
+- [ ] `WhisperStatus` struct: `{ found: bool, path: Option<String>, version: Option<String> }`
 
-**New file: `src-tauri/src/commands/transcription.rs`**
+**New file: `src-tauri/src/transcription/mod.rs`**
+- [ ] `resolve_models_path()` — `~/Library/Application Support/media-asset-manager/models/`
+- [ ] `pub mod engine; pub mod models; pub mod job;`
 
-- [ ] `transcription_check_environment()` → `PythonStatus`
-  - Called by Settings screen to show environment status
-
-**Update: `src-tauri/src/lib.rs`**
-- [ ] Register `transcription_check_environment`
+**New command: `transcription_check_environment()`**
+- [ ] Returns `WhisperStatus`
+- [ ] Called by Settings screen to show environment status
 
 ### Acceptance Criteria
-- [ ] Command returns correct Python path on dev machine
-- [ ] Command correctly detects faster-whisper presence
-- [ ] Returns useful status when Python not found
+- [ ] Command correctly finds whisper-cli at Homebrew path
+- [ ] Returns clear status when not found
 
 ---
 
 ## 11C — Model Management
 
-### Model Definitions
+### Model definitions (hardcoded in Rust)
+```rust
+pub struct ModelDef {
+    pub name: &'static str,      // "tiny", "base", "small", "medium", "large-v3"
+    pub filename: &'static str,  // "ggml-tiny.bin"
+    pub size_bytes: u64,
+    pub url: &'static str,       // HuggingFace URL
+    pub rtf: f32,                // real-time factor for estimation
+}
+```
 
-Available models (hardcoded in Rust):
+**New file: `src-tauri/src/transcription/models.rs`**
+- [ ] Define all 5 model entries with sizes and URLs
+- [ ] `list_installed_models(models_dir)` — scans dir, returns `Vec<ModelInfo>`
+- [ ] `ModelInfo` struct: `{ name, filename, size_bytes, installed, path, rtf }`
 
-| Name | Engine | Size | Download URL |
-|---|---|---|---|
-| `faster-whisper-tiny` | faster-whisper | 75 MB | Hugging Face |
-| `faster-whisper-base` | faster-whisper | 150 MB | Hugging Face |
-| `faster-whisper-small` | faster-whisper | 500 MB | Hugging Face |
-| `faster-whisper-medium` | faster-whisper | 1.5 GB | Hugging Face |
-| `faster-whisper-large-v3` | faster-whisper | 3.1 GB | Hugging Face |
+**New commands:**
+- [ ] `model_list()` → `Vec<ModelInfo>` — all available, marks installed
+- [ ] `model_delete(model_name)` → removes `.bin` file from models dir
+- [ ] `model_download(app_handle, model_name)` — downloads with progress events:
+  - Streams `model:download:progress { model_name, percent, bytes_downloaded, total_bytes }`
+  - On complete: `model:download:complete { model_name }`
+  - On error: `model:download:error { model_name, error }`
+  - Cleans up partial file on failure or cancellation
 
-Models are downloaded from `https://huggingface.co/Systran/faster-whisper-{size}/resolve/main/` as a directory of files.
-
-### Backend Tasks
-
-**Update: `src-tauri/src/transcription/mod.rs`**
-- [ ] `resolve_models_path()` — returns `~/Library/Application Support/media-asset-manager/models/`
-- [ ] `list_installed_models()` — scans models directory, returns `Vec<ModelInfo>`
-- [ ] `ModelInfo` struct: `{ name, engine, size_bytes, installed, path }`
-
-**Update: `src-tauri/src/commands/transcription.rs`**
-- [ ] `model_list()` → `Vec<ModelInfo>` — lists all available models, marks installed ones
-- [ ] `model_delete(model_name)` → `()` — removes model directory from disk
-- [ ] `model_download(app_handle, model_name)` — downloads model files with progress events:
-  - Emits `model:download:progress { model_name, percent, bytes_downloaded, total_bytes }`
-  - Emits `model:download:complete { model_name }`
-  - Emits `model:download:error { model_name, error }`
-  - Handles interruption — cleans up partial downloads
-
-**Update: `src-tauri/src/lib.rs`**
-- [ ] Register `model_list`, `model_delete`, `model_download`
-
-### Frontend Tasks
-
-**New file: `src/commands/transcription.ts`**
-- [ ] `checkEnvironment()` → `PythonStatus`
+**Frontend: `src/commands/transcription.ts`**
+- [ ] `checkEnvironment()` → `WhisperStatus`
 - [ ] `listModels()` → `ModelInfo[]`
 - [ ] `deleteModel(name)` → `void`
 - [ ] `downloadModel(name)` — fires and forgets (progress via events)
 
-**New file: `src/stores/transcriptionStore.ts`**
-- [ ] `models: ModelInfo[]`
-- [ ] `fetchModels()`
-- [ ] `activeDownloads: Record<string, number>` — model name → percent
-- [ ] `pythonStatus: PythonStatus | null`
-- [ ] Event listeners for `model:download:progress` and `model:download:complete`
+**Frontend: `src/stores/transcriptionStore.ts`**
+- [ ] `models: ModelInfo[]`, `fetchModels()`
+- [ ] `activeDownloads: Record<string, number>` — name → percent
+- [ ] `whisperStatus: WhisperStatus | null`
+- [ ] Event listeners for download progress and complete events
 
-**Update: `src/components/settings/SettingsView.tsx`**
-- [ ] Add **Transcription** section:
-  - **Environment status** — Python found/not found, faster-whisper installed/not installed
-  - Setup instructions if not found: `pip3 install faster-whisper`
-  - **Models** table with columns: Model, Engine, Size, Status, Actions
-  - Download button (with progress bar) for uninstalled models
-  - Delete button for installed models
-  - Toast on download complete / error
+**Frontend: Settings screen — new Transcription section**
+- [ ] Environment status — whisper-cli found/not found with path
+- [ ] If not found: instructions (`brew install whisper-cpp`)
+- [ ] Models table: Name, Size, Status (Installed/Available), Actions
+- [ ] Download button per uninstalled model — shows progress bar while downloading
+- [ ] Delete button per installed model
+- [ ] Toast on download complete / error
 
 ### Acceptance Criteria
-- [ ] Settings shows Python environment status
-- [ ] Settings shows available models with correct sizes and install status
-- [ ] Download button triggers model download with visible progress
-- [ ] Download completes — model marked as installed
-- [ ] Delete removes model — marked as not installed
-- [ ] Partial/failed download is cleaned up
+- [ ] Settings shows whisper-cli status with path
+- [ ] Available models listed with correct sizes
+- [ ] Download with progress bar works
+- [ ] Delete removes model file
+- [ ] Partial downloads cleaned up on failure
 
 ---
 
 ## 11D — Transcription Engine
 
-**New file: `src-tauri/scripts/transcribe.py`**
-```python
-# faster-whisper transcription sidecar
-# Usage: python3 transcribe.py --model <path> --audio <path>
-#                               --language <lang|auto> --prompt <text>
-# Output: JSON to stdout
-# Progress: percentage lines to stderr (10, 20, 30...)
-```
-- [ ] Accepts `--model`, `--audio`, `--language`, `--prompt` args
-- [ ] Extracts audio from video via faster-whisper's built-in handling
-- [ ] Outputs progress to stderr as integer percentages
-- [ ] Outputs result JSON to stdout on completion:
-  ```json
-  { "language": "en", "segments": [{"start": 0.0, "end": 3.2, "text": "..."}] }
+**New file: `src-tauri/src/transcription/job.rs`**
+
+- [ ] `TranscriptionState` — manages active subprocess handles for cancel
+  ```rust
+  pub struct TranscriptionState {
+      active_jobs: Mutex<HashMap<String, Arc<Mutex<Option<Child>>>>>,
+  }
   ```
-- [ ] Handles errors gracefully — outputs `{"error": "..."}` to stdout
 
-**New file: `src-tauri/scripts/transcribe_whisper.py`**
-- [ ] Identical interface, uses `import whisper` instead of `faster_whisper`
+- [ ] `transcription_start` command:
+  1. Validate asset exists, location is online
+  2. Validate model file exists at models path
+  3. Look up asset file path from locations table
+  4. Generate temp WAV path: `/tmp/mam_<job_id>.wav`
+  5. Run FFmpeg to extract audio:
+     `ffmpeg -i <asset_path> -ar 16000 -ac 1 -f wav <tmp>.wav`
+  6. Run whisper-cli:
+     `whisper-cli -m <model> -f <tmp>.wav --language <lang> --prompt "<prompt>" --output-json -of <tmp_output>`
+  7. Emit `transcription:progress` events based on elapsed time estimate
+  8. Parse output JSON — map `offsets.from/to` to `start_ms/end_ms`, trim text
+  9. Save transcript record to database
+  10. Populate `transcript_fts`
+  11. Emit `transcription:complete`
+  12. Clean up temp WAV and JSON files
 
-**Update: `src-tauri/src/commands/transcription.rs`**
-- [ ] `transcription_estimate(asset_id)` — looks up asset duration, returns `{ estimated_seconds }` based on selected model's real-time factor
-- [ ] `transcription_start(app_handle, state, asset_id, model_name, language, prompt)`:
-  - Validates asset exists and drive is online
-  - Validates model is installed
-  - Spawns Python subprocess
-  - Reads stderr for progress → emits `transcription:progress` events
-  - On exit: parses stdout JSON, saves to `transcripts` table
-  - Emits `transcription:complete` or `transcription:error`
-  - Returns `{ job_id }`
-- [ ] `transcription_cancel(job_id)` — kills subprocess, emits `transcription:cancelled`
-- [ ] `transcription_get(asset_id)` → `Option<Transcript>`
-- [ ] `transcription_delete(asset_id)` → `()`
-
-**New struct: `TranscriptionState`** (similar to `IndexingState`)
-- [ ] `active_jobs: Mutex<HashMap<String, ChildProcess>>` — tracks running subprocesses for cancel
+- [ ] `transcription_cancel` command — kills subprocess, emits `transcription:cancelled`
+- [ ] `transcription_get` command → `Option<Transcript>`
+- [ ] `transcription_delete` command → removes record and FTS entry
+- [ ] `transcription_estimate` command → `{ estimated_seconds: u64 }`
+  - Looks up asset `duration_ms`, multiplies by model RTF
 
 **Update: `src-tauri/src/lib.rs`**
-- [ ] Add `.manage(TranscriptionState::new())`
-- [ ] Register `transcription_estimate`, `transcription_start`, `transcription_cancel`, `transcription_get`, `transcription_delete`
+- [ ] `.manage(TranscriptionState::new())`
+- [ ] Register all new commands
 
 ### Acceptance Criteria
 - [ ] `transcription_start` produces a transcript saved to the database
-- [ ] Progress events emitted during transcription
-- [ ] Cancel kills the subprocess and emits cancelled event
+- [ ] Segments have correct `start_ms` and `end_ms` in milliseconds
+- [ ] Text is trimmed (no leading spaces)
+- [ ] Cancel kills the subprocess
 - [ ] `transcription_get` returns the saved transcript
-- [ ] Error in Python script is surfaced as an error event (not a crash)
-- [ ] Transcript segments have correct `start_ms` and `end_ms` values
+- [ ] Temp files are cleaned up after completion
+- [ ] Error surfaces cleanly if whisper-cli not found or model missing
 
 ---
 
 ## Definition of Done
 
-- Migration 003 applied on startup without errors
-- Python detection works on dev machine
+- Migration applies on startup without errors
+- whisper-cli detection works on dev machine
 - Model download and delete work in Settings
 - Transcription start/cancel/get commands functional
-- All acceptance criteria pass
-- No TypeScript errors
+- JSON parsing produces correct segments
+- No TypeScript errors (`tsc` clean)
 - Committed to `dev` with descriptive messages
 
 ---
@@ -250,22 +210,12 @@ Models are downloaded from `https://huggingface.co/Systran/faster-whisper-{size}
 
 | Task | Complexity |
 |---|---|
-| Migration 003 | Low |
-| Python detection | Low |
+| Migration | Low |
+| whisper-cli detection | Low |
 | Model management backend | Medium |
 | Model management UI in Settings | Medium |
-| transcribe.py sidecar | Medium |
-| Transcription commands (start/cancel/get) | High |
-| TranscriptionState subprocess management | High |
+| Transcription job — FFmpeg + whisper-cli pipeline | High |
+| Subprocess management + cancel | High |
+| JSON parsing + DB save | Low |
 
 **Overall: High — 4–6 days estimated**
-
----
-
-## Out of Scope for This Sprint
-
-- Transcript display in asset detail pane (Sprint 12)
-- Transcript search (Sprint 12)
-- Keyword Auto-Marking (backlog)
-- Transcription options dialog (Sprint 12)
-- Generate Transcript button (Sprint 12)
