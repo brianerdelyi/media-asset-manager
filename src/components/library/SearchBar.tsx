@@ -1,4 +1,4 @@
-// Search bar — triggers on Enter or button press.
+// Search bar — triggers on Enter or clear button. Fixed 28px height to match toolbar.
 
 import { useState } from 'react';
 import { Search, X } from 'lucide-react';
@@ -21,29 +21,24 @@ export function SearchBar({ onSearch, initialValue = '' }: SearchBarProps) {
   function handleClear() { setValue(''); onSearch(''); }
 
   return (
-    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-      <Search
-        size={14}
-        style={{
-          position: 'absolute', left: '10px',
-          color: 'var(--text-tertiary)', pointerEvents: 'none',
-        }}
-      />
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', height: '28px' }}>
+      <Search size={13} style={{ position: 'absolute', left: '9px', color: 'var(--text-tertiary)', pointerEvents: 'none' }} />
       <input
         type="text"
         value={value}
         onChange={e => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Search by filename…"
+        placeholder="Search assets…"
         style={{
-          width: '100%',
+          width: '100%', height: '28px',
           background: 'var(--bg-raised)',
           border: '1px solid var(--border-default)',
           borderRadius: '6px',
-          padding: '6px 32px 6px 30px',
-          fontSize: '13px',
+          padding: '0 28px 0 28px',
+          fontSize: '12px',
           color: 'var(--text-primary)',
           outline: 'none',
+          boxSizing: 'border-box',
         }}
         onFocus={e => (e.target.style.borderColor = 'var(--color-accent)')}
         onBlur={e => (e.target.style.borderColor = 'var(--border-default)')}
@@ -52,13 +47,13 @@ export function SearchBar({ onSearch, initialValue = '' }: SearchBarProps) {
         <button
           onClick={handleClear}
           style={{
-            position: 'absolute', right: '8px',
+            position: 'absolute', right: '7px',
             background: 'none', border: 'none', cursor: 'pointer',
             color: 'var(--text-tertiary)', padding: '2px',
             display: 'flex', alignItems: 'center',
           }}
         >
-          <X size={13} />
+          <X size={12} />
         </button>
       )}
     </div>

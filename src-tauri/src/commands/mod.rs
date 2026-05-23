@@ -5,3 +5,5 @@ pub mod drives;
 pub mod indexing;
 pub mod markers;
 pub mod settings;
+pub mod tags;
+pub mod transcription;

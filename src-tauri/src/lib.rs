@@ -8,6 +8,7 @@ pub mod error;
 pub mod indexer;
 pub mod library;
 pub mod models;
+pub mod transcription;
 
 use rusqlite::Connection;
 use std::sync::{Arc, Mutex};
@@ -33,33 +34,62 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .manage(AppState { db: Arc::clone(&db), db_read: Arc::clone(&db_read), db_index: Arc::clone(&db_index) })
+        .manage(AppState {
+            db: Arc::clone(&db),
+            db_read: Arc::clone(&db_read),
+            db_index: Arc::clone(&db_index),
+        })
         .manage(commands::indexing::IndexingState::new())
+        .manage(transcription::job::TranscriptionState::new())
         .invoke_handler(tauri::generate_handler![
+            // Drives
             commands::drives::drive_register,
             commands::drives::drive_list,
             commands::drives::drive_remove,
             commands::drives::drive_remove_confirm,
             commands::drives::drive_rename,
             commands::drives::drive_update_media_types,
+            // Indexing
             commands::indexing::index_start,
             commands::indexing::index_cancel,
             commands::indexing::index_cleanup,
+            // Assets
             commands::assets::asset_search,
             commands::assets::asset_get,
             commands::assets::asset_delete,
             commands::assets::asset_open,
             commands::assets::asset_reveal,
+            // Markers
             commands::markers::marker_create,
             commands::markers::marker_update,
             commands::markers::marker_delete,
+            // Clip export
             commands::clip_export::clip_export,
+            // Settings
             commands::settings::settings_get_stats,
+            commands::settings::settings_get_filter_counts,
             commands::settings::settings_get,
             commands::settings::settings_set,
             commands::settings::settings_get_asset_names,
+            commands::settings::settings_get_asset_metadata,
             commands::settings::settings_delete_orphaned,
             commands::settings::settings_purge_thumbnails,
+            // Tags
+            commands::tags::tag_list,
+            commands::tags::tag_create,
+            commands::tags::tag_delete,
+            commands::tags::asset_tags_set,
+            // Transcription — model management
+            commands::transcription::transcription_check_environment,
+            commands::transcription::model_list,
+            commands::transcription::model_delete,
+            commands::transcription::model_download,
+            // Transcription — jobs
+            commands::transcription::transcription_estimate,
+            commands::transcription::transcription_start,
+            commands::transcription::transcription_cancel,
+            commands::transcription::transcription_get,
+            commands::transcription::transcription_delete,
         ])
         .setup(move |app| {
             drives::watcher::start(app.handle().clone(), Arc::clone(&db));

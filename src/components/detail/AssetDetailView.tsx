@@ -10,10 +10,13 @@ import { MarkerPanel } from './MarkerPanel';
 import { ClipExportConfirm } from './ClipExportConfirm';
 import { Badge } from '../common/Badge';
 import { Button } from '../common/Button';
+import { TagBadge } from '../common/TagBadge';
+import { TagPicker } from '../common/TagPicker';
 import { formatDate, formatDuration, formatFileSize, formatResolution } from '../../utils/formatters';
 import { openAsset, revealAsset } from '../../commands/assets';
 import { deleteMarker, updateMarker } from '../../commands/markers';
 import { getSetting, setSetting } from '../../commands/settings';
+import { setAssetTags } from '../../commands/tags';
 import { useLibraryStore } from '../../stores/libraryStore';
 import type { AssetDetail, AssetMarker } from '../../types/asset';
 
@@ -29,7 +32,6 @@ function MediaIcon({ type }: { type: string }) {
   return <Music {...props} />;
 }
 
-// Controls bar height: timeline (32px) + play row (28px) + padding top (10px) + padding bottom (8px) = 78px
 const CONTROLS_HEIGHT = 82;
 
 export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
@@ -41,16 +43,22 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
   const [exportTarget, setExportTarget] = useState<AssetMarker | null>(null);
   const [exportingId, setExportingId] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [markerPanelOpen, setMarkerPanelOpen] = useState(false);
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
 
   const defaultAssetName = (asset.locations[0]?.filename ?? 'clip').replace(/\.[^.]+$/, '');
   const [assetName, setAssetName] = useState(defaultAssetName);
   const [assetNameDraft, setAssetNameDraft] = useState(defaultAssetName);
   const [editingAssetName, setEditingAssetName] = useState(false);
 
-  // MarkerPanel visibility — controlled here so header button can toggle it
-  const [markerPanelOpen, setMarkerPanelOpen] = useState(false);
+  const [description, setDescription] = useState('');
+  const [descriptionDraft, setDescriptionDraft] = useState('');
+  const [editingDescription, setEditingDescription] = useState(false);
 
-  // Measure the left column to compute exact video height
+  const [location, setLocation] = useState('');
+  const [locationDraft, setLocationDraft] = useState('');
+  const [editingLocation, setEditingLocation] = useState(false);
+
   const leftColumnRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const [videoHeight, setVideoHeight] = useState<number | null>(null);
@@ -59,10 +67,7 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
     const col = leftColumnRef.current;
     const hdr = headerRef.current;
     if (!col || !hdr) return;
-    const colH = col.clientHeight;
-    const hdrH = hdr.clientHeight;
-    const padding = 16 + 12 + 16;
-    const available = colH - hdrH - padding - CONTROLS_HEIGHT;
+    const available = col.clientHeight - hdr.clientHeight - 16 - 12 - 16 - CONTROLS_HEIGHT;
     if (available > 40) setVideoHeight(available);
   }, []);
 
@@ -75,21 +80,37 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
 
   const videoRef = useRef<VideoPlayerHandle>(null);
   const { refreshSelected } = useLibraryStore();
-
   const onlineLoc = asset.locations.find(l => l.is_online && !l.is_missing);
   const thumbUrl = asset.thumbnail_path ? convertFileSrc(asset.thumbnail_path) : null;
   const filename = asset.locations[0]?.filename ?? '';
 
   useEffect(() => {
-    getSetting(`asset_name:${asset.id}`).then(saved => {
-      if (saved) { setAssetName(saved); setAssetNameDraft(saved); }
-    }).catch(() => {});
+    getSetting(`asset_name:${asset.id}`).then(v => { if (v) { setAssetName(v); setAssetNameDraft(v); } }).catch(() => {});
+    getSetting(`asset_description:${asset.id}`).then(v => { if (v) { setDescription(v); setDescriptionDraft(v); } }).catch(() => {});
+    getSetting(`asset_location:${asset.id}`).then(v => { if (v) { setLocation(v); setLocationDraft(v); } }).catch(() => {});
   }, [asset.id]);
 
   async function saveAssetName() {
     const name = assetNameDraft.trim() || defaultAssetName;
     setAssetName(name); setAssetNameDraft(name); setEditingAssetName(false);
     await setSetting(`asset_name:${asset.id}`, name).catch(() => {});
+  }
+
+  async function saveDescription() {
+    const val = descriptionDraft.trim();
+    setDescription(val); setDescriptionDraft(val); setEditingDescription(false);
+    await setSetting(`asset_description:${asset.id}`, val).catch(() => {});
+  }
+
+  async function saveLocation() {
+    const val = locationDraft.trim();
+    setLocation(val); setLocationDraft(val); setEditingLocation(false);
+    await setSetting(`asset_location:${asset.id}`, val).catch(() => {});
+  }
+
+  async function handleTagsChange(tagIds: string[]) {
+    await setAssetTags(asset.id, tagIds).catch(() => {});
+    refreshSelected();
   }
 
   async function handleOpen() {
@@ -118,10 +139,7 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
     try { await deleteMarker(markerId); refreshSelected(); } catch (e) { console.error(e); } finally { setConfirmDeleteId(null); }
   }
 
-  function handleMarkerAdded() {
-    setMarkerPanelOpen(false);
-    refreshSelected();
-  }
+  function handleMarkerAdded() { setMarkerPanelOpen(false); refreshSelected(); }
 
   async function handleExportConfirmed() {
     if (!exportTarget) return;
@@ -142,9 +160,8 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
         <ClipExportConfirm marker={exportTarget} assetDurationMs={asset.duration_ms ?? 0} assetFileSizeBytes={asset.file_size} fileExtension={asset.file_extension} onConfirm={handleExportConfirmed} onCancel={() => setExportTarget(null)} />
       )}
 
-      {/* Left — measured column */}
+      {/* Left — video */}
       <div ref={leftColumnRef} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '16px', gap: '12px' }}>
-        {/* Header */}
         <div ref={headerRef} style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
           <button onClick={onClose}
             style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-secondary)', padding: '4px 0' }}
@@ -161,39 +178,20 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
           )}
         </div>
 
-        {/* Video */}
         <div style={{ flexShrink: 0 }}>
           {asset.media_type === 'video' && onlineLoc ? (
-            <VideoPlayer
-              ref={videoRef}
-              filePath={onlineLoc.file_path}
-              durationMs={asset.duration_ms ?? 0}
-              markers={asset.markers}
-              posterUrl={thumbUrl}
-              minScrubMs={minScrubMs}
-              videoHeight={videoHeight}
-              onTimeUpdate={setCurrentMs}
-              onMarkerClick={handleMarkerClick}
-            />
+            <VideoPlayer ref={videoRef} filePath={onlineLoc.file_path} durationMs={asset.duration_ms ?? 0} markers={asset.markers} posterUrl={thumbUrl} minScrubMs={minScrubMs} videoHeight={videoHeight} onTimeUpdate={setCurrentMs} onMarkerClick={handleMarkerClick} />
           ) : (
             <div style={{ aspectRatio: '16/9', background: 'var(--bg-raised)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-              {thumbUrl
-                ? <img src={thumbUrl} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                : <MediaIcon type={asset.media_type} />
-              }
+              {thumbUrl ? <img src={thumbUrl} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <MediaIcon type={asset.media_type} />}
             </div>
           )}
         </div>
       </div>
 
-      {/* Right — metadata + markers (scrollable) */}
-      <div style={{
-        width: '256px', flexShrink: 0,
-        borderLeft: '1px solid var(--border-subtle)',
-        overflowY: 'auto', padding: '16px',
-        background: 'var(--bg-surface)',
-        display: 'flex', flexDirection: 'column', gap: '20px',
-      }}>
+      {/* Right — metadata panel */}
+      <div style={{ width: '256px', flexShrink: 0, borderLeft: '1px solid var(--border-subtle)', overflowY: 'auto', padding: '16px', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
         {asset.is_orphaned && (
           <div style={{ background: 'rgba(255,159,10,0.1)', border: '1px solid rgba(255,159,10,0.3)', borderRadius: '6px', padding: '8px 10px', fontSize: '11px', color: 'var(--status-orphaned)' }}>
             No active drive location
@@ -219,6 +217,88 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
           )}
         </div>
 
+        {/* Description */}
+        <div>
+          <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 6px' }}>Description</p>
+          {editingDescription ? (
+            <textarea value={descriptionDraft} onChange={e => setDescriptionDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Escape') { setDescriptionDraft(description); setEditingDescription(false); } }}
+              onBlur={saveDescription} autoFocus rows={3}
+              style={{ width: '100%', background: 'var(--bg-raised)', border: '1px solid var(--color-accent)', borderRadius: '6px', padding: '6px 8px', fontSize: '12px', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }} />
+          ) : (
+            <div onClick={() => { setDescriptionDraft(description); setEditingDescription(true); }}
+              style={{ minHeight: '52px', padding: '6px 8px', background: 'var(--bg-raised)', border: '1px solid var(--border-subtle)', borderRadius: '6px', cursor: 'text', display: 'flex', alignItems: description ? 'flex-start' : 'center', gap: '6px' }}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border-strong)')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border-subtle)')}>
+              <span style={{ fontSize: '12px', color: description ? 'var(--text-primary)' : 'var(--text-tertiary)', lineHeight: 1.5, flex: 1 }}>
+                {description || 'Add a description…'}
+              </span>
+              <Pencil size={11} style={{ flexShrink: 0, color: 'var(--text-tertiary)', marginTop: '2px' }} />
+            </div>
+          )}
+        </div>
+
+        {/* Location */}
+        <div>
+          <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 6px' }}>Location</p>
+          {editingLocation ? (
+            <input type="text" value={locationDraft} onChange={e => setLocationDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') saveLocation(); if (e.key === 'Escape') { setLocationDraft(location); setEditingLocation(false); } }}
+              onBlur={saveLocation} autoFocus placeholder="Where was this recorded?"
+              style={{ width: '100%', background: 'var(--bg-raised)', border: '1px solid var(--color-accent)', borderRadius: '6px', padding: '6px 8px', fontSize: '12px', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' }} />
+          ) : (
+            <div onClick={() => { setLocationDraft(location); setEditingLocation(true); }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', padding: '6px 8px', background: 'var(--bg-raised)', border: '1px solid var(--border-subtle)', borderRadius: '6px', cursor: 'text' }}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border-strong)')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border-subtle)')}>
+              <span style={{ fontSize: '12px', color: location ? 'var(--text-primary)' : 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {location || 'Add a location…'}
+              </span>
+              <Pencil size={11} style={{ flexShrink: 0, color: 'var(--text-tertiary)' }} />
+            </div>
+          )}
+        </div>
+
+        {/* Tags — Notion pattern: section label, pills + "+ Add" inline, picker opens below */}
+        <div>
+          <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 8px' }}>Tags</p>
+
+          {/* Applied tags + "+ Add" button on the same line */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center', marginBottom: tagPickerOpen ? '8px' : 0 }}>
+            {asset.tags.map(tag => (
+              <TagBadge
+                key={tag.id}
+                tag={tag}
+                onRemove={(tagId) => handleTagsChange(asset.tags.filter(t => t.id !== tagId).map(t => t.id))}
+              />
+            ))}
+            {!tagPickerOpen && (
+              <button
+                onClick={() => setTagPickerOpen(true)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center',
+                  fontSize: '11px', color: 'var(--color-accent)',
+                  background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
+                onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+              >
+                + Add
+              </button>
+            )}
+          </div>
+
+          {/* Picker opens inline below the pills */}
+          {tagPickerOpen && (
+            <TagPicker
+              selectedTagIds={asset.tags.map(t => t.id)}
+              onChange={handleTagsChange}
+              onClose={() => setTagPickerOpen(false)}
+            />
+          )}
+        </div>
+
+        {/* Metadata */}
         <DetailSection label="Metadata">
           {filename && <MetaRow label="Filename" value={filename} />}
           <MetaRow label="Type"       value={`${asset.media_type} / .${asset.file_extension}`} />
@@ -232,6 +312,7 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
           <MetaRow label="Modified"   value={formatDate(asset.modified_at_fs)} />
         </DetailSection>
 
+        {/* Locations */}
         <DetailSection label={`Locations (${asset.locations.length})`}>
           {asset.locations.map(loc => (
             <div key={loc.id} style={{ background: 'var(--bg-raised)', borderRadius: '6px', padding: '8px 10px', marginBottom: '6px' }}>
@@ -245,48 +326,24 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
           ))}
         </DetailSection>
 
-        {asset.tags.length > 0 && (
-          <DetailSection label="Tags">
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-              {asset.tags.map(tag => (
-                <span key={tag.id} style={{ fontSize: '11px', color: 'var(--text-secondary)', background: 'var(--bg-raised)', border: '1px solid var(--border-subtle)', borderRadius: '4px', padding: '2px 7px' }}>{tag.name_display}</span>
-              ))}
-            </div>
-          </DetailSection>
-        )}
-
-        {/* Markers — Add Marker button sits beside the section label */}
+        {/* Markers */}
         {asset.media_type === 'video' && (
           <DetailSection
             label={`Markers (${asset.markers.length})`}
-            action={
-              !markerPanelOpen ? (
-                <button
-                  onClick={() => setMarkerPanelOpen(true)}
-                  style={{ fontSize: '11px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1 }}
-                  onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
-                  onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-                >
-                  + Add
-                </button>
-              ) : null
-            }
+            action={!markerPanelOpen ? (
+              <button onClick={() => setMarkerPanelOpen(true)}
+                style={{ fontSize: '11px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1 }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
+                onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
+                + Add
+              </button>
+            ) : null}
           >
-            {/* MarkerPanel — shown when Add is clicked, dismissed on save/cancel */}
             {markerPanelOpen && (
               <div style={{ marginBottom: '8px' }}>
-                <MarkerPanel
-                  assetId={asset.id}
-                  markers={asset.markers}
-                  currentMs={currentMs}
-                  onMarkersChanged={handleMarkerAdded}
-                  onMarkerClick={handleMarkerClick}
-                  onConstrainScrub={setMinScrubMs}
-                  onCancel={() => { setMarkerPanelOpen(false); setMinScrubMs(null); }}
-                />
+                <MarkerPanel assetId={asset.id} markers={asset.markers} currentMs={currentMs} onMarkersChanged={handleMarkerAdded} onMarkerClick={handleMarkerClick} onConstrainScrub={setMinScrubMs} onCancel={() => { setMarkerPanelOpen(false); setMinScrubMs(null); }} />
               </div>
             )}
-
             {exportError && (
               <div style={{ fontSize: '11px', color: 'var(--color-danger)', background: 'rgba(255,69,58,0.1)', border: '1px solid rgba(255,69,58,0.2)', borderRadius: '5px', padding: '6px 8px', marginBottom: '8px' }}>{exportError}</div>
             )}
@@ -344,14 +401,11 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
   );
 }
 
-// DetailSection now accepts an optional action element shown beside the label
 function DetailSection({ label, children, action }: { label: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-        <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>
-          {label}
-        </p>
+        <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>{label}</p>
         {action}
       </div>
       {children}

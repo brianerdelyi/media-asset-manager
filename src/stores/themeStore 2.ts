@@ -1,4 +1,6 @@
-// Theme store — manages light/dark mode, sidebar, and filter panel state.
+// Theme store — manages light/dark mode and sidebar state.
+// Persists preferences to settings via localStorage for now,
+// will migrate to settings commands in a follow-up.
 
 import { create } from 'zustand';
 
@@ -7,12 +9,10 @@ export type ThemeMode = 'system' | 'light' | 'dark';
 interface ThemeStore {
   mode: ThemeMode;
   sidebarExpanded: boolean;
-  filterPanelVisible: boolean;
   resolvedTheme: 'light' | 'dark';
   setMode: (mode: ThemeMode) => void;
   toggleSidebar: () => void;
   setSidebarExpanded: (expanded: boolean) => void;
-  toggleFilterPanel: () => void;
 }
 
 function getSystemTheme(): 'light' | 'dark' {
@@ -37,15 +37,14 @@ function applyTheme(mode: ThemeMode) {
   return resolved;
 }
 
+// Load persisted preferences
 const savedMode = (localStorage.getItem('theme-mode') as ThemeMode) ?? 'system';
 const savedSidebar = localStorage.getItem('sidebar-expanded') === 'true';
-const savedFilter = localStorage.getItem('filter-panel-visible') !== 'false'; // default visible
 const initialResolved = applyTheme(savedMode);
 
 export const useThemeStore = create<ThemeStore>((set) => ({
   mode: savedMode,
   sidebarExpanded: savedSidebar,
-  filterPanelVisible: savedFilter,
   resolvedTheme: initialResolved,
 
   setMode: (mode) => {
@@ -66,16 +65,9 @@ export const useThemeStore = create<ThemeStore>((set) => ({
     localStorage.setItem('sidebar-expanded', String(expanded));
     set({ sidebarExpanded: expanded });
   },
-
-  toggleFilterPanel: () => {
-    set(state => {
-      const visible = !state.filterPanelVisible;
-      localStorage.setItem('filter-panel-visible', String(visible));
-      return { filterPanelVisible: visible };
-    });
-  },
 }));
 
+// Watch system theme changes
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
   const { mode, setMode } = useThemeStore.getState();
   if (mode === 'system') setMode('system');
