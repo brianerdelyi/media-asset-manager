@@ -38,6 +38,11 @@ export function IndexingProgress() {
   const isIndexComplete  = indexJob?.status === 'complete';
   const isIndexCancelled = indexJob?.status === 'cancelled';
 
+  // Transcription: during the 0–5% phase (FFmpeg + model load), whisper hasn't
+  // emitted any segments yet. Show a slow pulse on the bar to indicate activity.
+  const txPercent = txJob?.percent ?? 0;
+  const txInitialising = txPercent < 6; // FFmpeg extraction + model GPU init
+
   return (
     <div style={{
       position: 'fixed', bottom: 0, right: 0,
@@ -91,28 +96,30 @@ export function IndexingProgress() {
         </div>
       )}
 
-      {/* Transcription row — real 0–100% progress from whisper-cli stderr */}
+      {/* Transcription row */}
       {txJob && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: '10px', padding: '5px 16px',
           borderTop: indexJob ? '1px solid var(--border-subtle)' : 'none',
         }}>
           <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center', color: 'var(--color-accent)' }}>
-            <Mic size={13} />
+            <Mic size={13} style={{ animation: txInitialising ? 'pulse 1.2s ease-in-out infinite' : 'none' }} />
           </span>
           <div style={{ flex: 1, height: '3px', background: 'var(--border-subtle)', borderRadius: '2px', overflow: 'hidden' }}>
             <div style={{
               height: '100%', borderRadius: '2px',
               background: 'var(--color-accent)',
-              width: `${txJob.percent}%`,
-              transition: 'width 0.5s ease',
+              width: `${txPercent}%`,
+              // Pulse opacity during initialisation phase so bar is clearly alive
+              animation: txInitialising ? 'barPulse 1.2s ease-in-out infinite' : 'none',
+              transition: txInitialising ? 'none' : 'width 0.5s ease',
             }} />
           </div>
           <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
-            Transcribing…
+            {txInitialising ? 'Preparing…' : 'Transcribing…'}
           </span>
           <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', width: '32px', textAlign: 'right' }}>
-            {txJob.percent}%
+            {txPercent}%
           </span>
           <button onClick={cancelTx}
             style={{ fontSize: '12px', color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
@@ -125,7 +132,9 @@ export function IndexingProgress() {
       )}
 
       <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes spin     { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes pulse    { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes barPulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
       `}</style>
     </div>
   );

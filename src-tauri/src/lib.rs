@@ -1,6 +1,7 @@
 //! Media Asset Manager — Tauri backend entry point.
 
 pub mod assets;
+pub mod automark;
 pub mod commands;
 pub mod db;
 pub mod drives;
@@ -25,10 +26,10 @@ pub fn run() {
     let conn = db::connection::open(&db_path).expect("Failed to open library database");
     library::resolve_thumbnails_path().expect("Failed to create thumbnails directory");
     conn.execute("UPDATE drives SET is_online = 0", []).expect("Failed to reset drive online status");
-    let conn_read = db::connection::open_readonly(&db_path).expect("Failed to open read-only connection");
+    let conn_read  = db::connection::open_readonly(&db_path).expect("Failed to open read-only connection");
     let conn_index = db::connection::open_for_indexer(&db_path).expect("Failed to open indexer connection");
-    let db = Arc::new(Mutex::new(conn));
-    let db_read = Arc::new(Mutex::new(conn_read));
+    let db       = Arc::new(Mutex::new(conn));
+    let db_read  = Arc::new(Mutex::new(conn_read));
     let db_index = Arc::new(Mutex::new(conn_index));
 
     tauri::Builder::default()
@@ -90,6 +91,10 @@ pub fn run() {
             commands::transcription::transcription_cancel,
             commands::transcription::transcription_get,
             commands::transcription::transcription_delete,
+            // Auto-marking
+            commands::automark::keyword_list,
+            commands::automark::keyword_save,
+            commands::automark::automark_run,
         ])
         .setup(move |app| {
             drives::watcher::start(app.handle().clone(), Arc::clone(&db));

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
-import { ArrowLeft, FolderOpen, ExternalLink, Pencil, Download, X, Film, Image, Music, Loader } from 'lucide-react';
+import { ArrowLeft, FolderOpen, ExternalLink, Pencil, Download, X, Film, Image, Music, Loader, Tag } from 'lucide-react';
 import { VideoPlayer, VideoPlayerHandle } from './VideoPlayer';
 import { MarkerPanel } from './MarkerPanel';
 import { ClipExportConfirm } from './ClipExportConfirm';
@@ -20,9 +20,11 @@ import { deleteMarker, updateMarker } from '../../commands/markers';
 import { getSetting, setSetting } from '../../commands/settings';
 import { setAssetTags } from '../../commands/tags';
 import { transcriptionGet, transcriptionStart, transcriptionDelete } from '../../commands/transcription';
+import { automarkRun } from '../../commands/automark';
 import { useLibraryStore } from '../../stores/libraryStore';
 import { useTranscriptionStore } from '../../stores/transcriptionStore';
 import { listen } from '@tauri-apps/api/event';
+import { showToast } from '../../stores/toastStore';
 import type { AssetDetail, AssetMarker } from '../../types/asset';
 import type { Transcript } from '../../commands/transcription';
 
@@ -53,6 +55,7 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const [txDialogOpen, setTxDialogOpen] = useState(false);
   const [transcript, setTranscript] = useState<Transcript | null>(null);
+  const [autoMarking, setAutoMarking] = useState(false);
 
   const defaultAssetName = (asset.locations[0]?.filename ?? 'clip').replace(/\.[^.]+$/, '');
   const [assetName, setAssetName] = useState(defaultAssetName);
@@ -91,7 +94,6 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
   const { models, activeJob, setActiveJob, fetchModels } = useTranscriptionStore();
   const installedModels = models.filter(m => m.installed);
 
-  // Fetch models on mount if store is empty
   useEffect(() => {
     if (models.length === 0) fetchModels();
   }, []);
@@ -100,10 +102,8 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
   const thumbUrl = asset.thumbnail_path ? convertFileSrc(asset.thumbnail_path) : null;
   const filename = asset.locations[0]?.filename ?? '';
   const canTranscribe = (asset.media_type === 'video' || asset.media_type === 'audio') && !!onlineLoc;
-
   const isTranscribing = activeJob?.assetId === asset.id;
 
-  // Load settings and transcript on mount
   useEffect(() => {
     getSetting(`asset_name:${asset.id}`).then(v => { if (v) { setAssetName(v); setAssetNameDraft(v); } }).catch(() => {});
     getSetting(`asset_description:${asset.id}`).then(v => { if (v) { setDescription(v); setDescriptionDraft(v); } }).catch(() => {});
@@ -111,14 +111,12 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
     transcriptionGet(asset.id).then(t => setTranscript(t)).catch(() => {});
   }, [asset.id]);
 
-  // Reload transcript when job for THIS asset clears
   useEffect(() => {
     if (!isTranscribing && !transcript) {
       transcriptionGet(asset.id).then(t => { if (t) setTranscript(t); }).catch(() => {});
     }
   }, [isTranscribing]);
 
-  // Listen for Tauri transcription:complete event
   useEffect(() => {
     const unlisten = listen<{ asset_id: string }>('transcription:complete', (e) => {
       if (e.payload.asset_id === asset.id) {
@@ -192,12 +190,48 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
     catch (e) { setExportError(String(e)); } finally { setExportingId(null); }
   }
 
-  async function handleStartTranscription(model: string, language: string, prompt: string) {
+  async function handleRunAutoMark() {
+    setAutoMarking(true);
+    try {
+      const result = await automarkRun(asset.id);
+      if (result.markers_created === 0) {
+        showToast('No keyword matches found in transcript.', 'info');
+      } else {
+        showToast(
+          `Created ${result.markers_created} marker${result.markers_created !== 1 ? 's' : ''} from ${result.matched_keywords.join(', ')}.`,
+          'success'
+        );
+        refreshSelected();
+      }
+    } catch (e) {
+      showToast(String(e), 'error');
+    } finally {
+      setAutoMarking(false);
+    }
+  }
+
+  async function handleStartTranscription(model: string, language: string, prompt: string, runAutoMark: boolean) {
     setTxDialogOpen(false);
-    setTranscript(null); // Clear so UI shows transcribing state
+    setTranscript(null);
     try {
       const result = await transcriptionStart(asset.id, model, language, prompt);
       setActiveJob({ jobId: result.job_id, assetId: asset.id, percent: 0 });
+
+      // If auto-mark requested, run it once transcription completes
+      if (runAutoMark) {
+        const unlisten = await listen<{ asset_id: string }>('transcription:complete', async (e) => {
+          if (e.payload.asset_id === asset.id) {
+            unlisten();
+            try {
+              const r = await automarkRun(asset.id);
+              if (r.markers_created > 0) {
+                showToast(`Auto-marked ${r.markers_created} moment${r.markers_created !== 1 ? 's' : ''}.`, 'success');
+                refreshSelected();
+              }
+            } catch (_) {}
+          }
+        });
+      }
     } catch (e) {
       console.error('Transcription failed to start:', e);
     }
@@ -226,11 +260,8 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
       )}
       {txDialogOpen && (
         <TranscriptionOptionsDialog
-          assetId={asset.id}
-          assetName={assetName}
-          durationMs={asset.duration_ms ?? null}
-          onStart={handleStartTranscription}
-          onCancel={() => setTxDialogOpen(false)}
+          assetId={asset.id} assetName={assetName} durationMs={asset.duration_ms ?? null}
+          onStart={handleStartTranscription} onCancel={() => setTxDialogOpen(false)}
         />
       )}
 
@@ -357,15 +388,36 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
 
         {/* Transcript */}
         {canTranscribe && (
-          <div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {transcript && !isTranscribing ? (
-              <TranscriptPanel
-                transcript={transcript}
-                currentMs={currentMs}
-                onSeek={ms => videoRef.current?.seekTo(ms)}
-                onRetranscribe={() => setTxDialogOpen(true)}
-                onDelete={handleDeleteTranscript}
-              />
+              <>
+                <TranscriptPanel
+                  transcript={transcript} currentMs={currentMs}
+                  onSeek={ms => videoRef.current?.seekTo(ms)}
+                  onRetranscribe={() => setTxDialogOpen(true)}
+                  onDelete={handleDeleteTranscript}
+                />
+                {/* Auto-Mark button — shown when transcript exists */}
+                <button
+                  onClick={handleRunAutoMark}
+                  disabled={autoMarking}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                    fontSize: '12px', color: autoMarking ? 'var(--text-tertiary)' : 'var(--color-accent)',
+                    background: 'none', border: '1px solid var(--border-default)',
+                    borderRadius: '6px', padding: '6px 10px',
+                    cursor: autoMarking ? 'not-allowed' : 'pointer', width: '100%',
+                  }}
+                  onMouseEnter={e => { if (!autoMarking) (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-accent)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; }}
+                >
+                  {autoMarking
+                    ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Running…</>
+                    : <><Tag size={12} /> Auto-Mark from Transcript</>
+                  }
+                </button>
+                <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+              </>
             ) : (
               <div>
                 <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 8px' }}>Transcript</p>
@@ -376,12 +428,10 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                     fontSize: '12px',
                     color: txButtonDisabled || installedModels.length === 0 ? 'var(--text-tertiary)' : 'var(--color-accent)',
-                    background: 'none',
-                    border: '1px solid var(--border-default)',
+                    background: 'none', border: '1px solid var(--border-default)',
                     borderRadius: '6px', padding: '6px 10px',
                     cursor: txButtonDisabled || installedModels.length === 0 ? 'not-allowed' : 'pointer',
-                    opacity: !onlineLoc ? 0.4 : 1,
-                    width: '100%',
+                    opacity: !onlineLoc ? 0.4 : 1, width: '100%',
                   }}
                   onMouseEnter={e => { if (!txButtonDisabled && installedModels.length > 0) (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-accent)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)'; }}

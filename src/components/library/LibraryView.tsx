@@ -4,13 +4,15 @@ import { useEffect } from 'react';
 import { ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import { useLibraryStore } from '../../stores/libraryStore';
 import { useThemeStore } from '../../stores/themeStore';
+import { useTranscriptionStore } from '../../stores/transcriptionStore';
+import { useIndexingStore } from '../../stores/indexingStore';
 import { AssetCard } from './AssetCard';
 import { AssetDetailView } from '../detail/AssetDetailView';
 import { SearchBar } from './SearchBar';
 import { FilterPanel } from './FilterPanel';
+import { SortDropdown } from '../common/SortDropdown';
 import type { AssetSort } from '../../types/asset';
 
-// Shared toolbar control styles — all controls use these as a base
 const CTRL_HEIGHT = 28;
 const CTRL_BASE: React.CSSProperties = {
   height: `${CTRL_HEIGHT}px`,
@@ -25,6 +27,9 @@ const CTRL_BASE: React.CSSProperties = {
   boxSizing: 'border-box' as const,
 };
 
+// Height of the status bar when visible
+const STATUS_BAR_HEIGHT = 28;
+
 export function LibraryView() {
   const {
     results, total, page, pageSize, loading, error,
@@ -33,6 +38,13 @@ export function LibraryView() {
   } = useLibraryStore();
 
   const { filterPanelVisible, toggleFilterPanel } = useThemeStore();
+  const { activeJob: txJob } = useTranscriptionStore();
+  const { currentJob: indexJob } = useIndexingStore();
+
+  // Status bar is visible when either indexing or transcribing
+  const statusBarVisible = !!(txJob || (indexJob && indexJob.status === 'running'));
+  const statusBarRows = (txJob ? 1 : 0) + (indexJob && indexJob.status === 'running' ? 1 : 0);
+  const statusBarHeight = statusBarVisible ? statusBarRows * STATUS_BAR_HEIGHT : 0;
 
   useEffect(() => { search(); }, []);
 
@@ -63,7 +75,11 @@ export function LibraryView() {
   ];
 
   if (selectedAsset) {
-    return <AssetDetailView asset={selectedAsset} onClose={clearSelection} />;
+    return (
+      <div style={{ height: '100%', paddingBottom: statusBarHeight, boxSizing: 'border-box' }}>
+        <AssetDetailView asset={selectedAsset} onClose={clearSelection} />
+      </div>
+    );
   }
 
   if (detailLoading) {
@@ -75,7 +91,7 @@ export function LibraryView() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100%', overflow: 'hidden', paddingBottom: statusBarHeight, boxSizing: 'border-box' }}>
 
       {/* Filter sidebar */}
       <div style={{
@@ -94,7 +110,7 @@ export function LibraryView() {
       {/* Main */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* Toolbar — all controls 28px tall, same border/radius/bg */}
+        {/* Toolbar */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: '8px',
           padding: '10px 16px',
@@ -103,7 +119,7 @@ export function LibraryView() {
           flexShrink: 0,
         }}>
 
-          {/* Filters button — fixed 108px, split into toggle + clear zone */}
+          {/* Filters button — fixed 108px */}
           <div style={{
             ...CTRL_BASE,
             width: '108px', flexShrink: 0,
@@ -112,7 +128,6 @@ export function LibraryView() {
             borderColor: filterPanelVisible ? 'rgba(10,132,255,0.3)' : 'var(--border-default)',
             color: filterPanelVisible ? 'var(--color-accent)' : 'var(--text-secondary)',
           }}>
-            {/* Toggle area */}
             <button
               onClick={toggleFilterPanel}
               title={filterPanelVisible ? 'Hide filters' : 'Show filters'}
@@ -128,8 +143,6 @@ export function LibraryView() {
               <SlidersHorizontal size={13} />
               <span>Filters</span>
             </button>
-
-            {/* Clear zone — fixed 28px, always same size */}
             <div style={{
               width: '28px', height: '100%', flexShrink: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -165,7 +178,7 @@ export function LibraryView() {
             </div>
           </div>
 
-          {/* Search — flex fills remaining space, same height */}
+          {/* Search */}
           <div style={{ flex: 1 }}>
             <SearchBar
               onSearch={(q) => setFilters({ query: q || undefined })}
@@ -173,24 +186,15 @@ export function LibraryView() {
             />
           </div>
 
-          {/* Sort — same height, same style as filter button */}
-          <select
-            value={JSON.stringify(sort)}
-            onChange={e => setSort(JSON.parse(e.target.value))}
-            style={{
-              ...CTRL_BASE,
-              padding: '0 8px',
-              flexShrink: 0,
-              outline: 'none',
-              appearance: 'auto',
-            }}
-          >
-            {sortOptions.map(opt => (
-              <option key={opt.label} value={JSON.stringify(opt.value)}>{opt.label}</option>
-            ))}
-          </select>
+          {/* Sort — custom dropdown using design system colours */}
+          <SortDropdown
+            options={sortOptions}
+            value={sort}
+            onChange={setSort}
+            serialize={v => JSON.stringify(v)}
+          />
 
-          {/* Asset count — plain muted text, no border/background */}
+          {/* Asset count */}
           <span style={{
             fontSize: '11px',
             color: 'var(--text-tertiary)',

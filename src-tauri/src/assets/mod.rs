@@ -6,8 +6,6 @@ use crate::models::asset::{
     AssetSearchResult, AssetSort, AssetSummary, AssetTag,
 };
 
-/// Search assets with filters, sorting, and pagination.
-/// Searches filename, asset_name, description, location settings, and transcript FTS.
 pub fn search_assets(
     conn: &Connection,
     filters: &AssetSearchFilters,
@@ -20,18 +18,24 @@ pub fn search_assets(
     let mut conditions: Vec<String> = Vec::new();
     let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
-    // Query string — searches filename, name, description, location, and transcript
     let query_str = filters.query.as_deref().unwrap_or("").trim().to_string();
     let has_query = !query_str.is_empty();
 
     if has_query {
         let pattern = format!("%{}%", query_str);
+        // FTS5 content tables require a specific join pattern to avoid
+        // "no such column: T.text" errors. Use a correlated subquery that
+        // joins transcript_fts back to transcripts via rowid.
         conditions.push(
             "(EXISTS (SELECT 1 FROM locations l WHERE l.asset_id = a.id AND l.filename LIKE ?)
               OR EXISTS (SELECT 1 FROM settings s WHERE s.key = 'asset_name:' || a.id AND s.value LIKE ?)
               OR EXISTS (SELECT 1 FROM settings s WHERE s.key = 'asset_description:' || a.id AND s.value LIKE ?)
               OR EXISTS (SELECT 1 FROM settings s WHERE s.key = 'asset_location:' || a.id AND s.value LIKE ?)
-              OR EXISTS (SELECT 1 FROM transcript_fts WHERE transcript_fts MATCH ? AND asset_id = a.id))".to_string(),
+              OR EXISTS (
+                SELECT 1 FROM transcripts t
+                WHERE t.asset_id = a.id
+                  AND t.rowid IN (SELECT rowid FROM transcript_fts WHERE transcript_fts MATCH ?)
+              ))".to_string(),
         );
         params_vec.push(Box::new(pattern.clone()));
         params_vec.push(Box::new(pattern.clone()));
@@ -74,7 +78,7 @@ pub fn search_assets(
 
     match filters.status.as_deref() {
         Some("orphaned") => conditions.push("a.is_orphaned = 1".to_string()),
-        Some("missing") => conditions.push(
+        Some("missing")  => conditions.push(
             "EXISTS (SELECT 1 FROM locations l WHERE l.asset_id = a.id AND l.is_missing = 1)".to_string(),
         ),
         _ => {}
@@ -100,10 +104,10 @@ pub fn search_assets(
     let sort_clause = match sort {
         Some(s) => {
             let field = match s.field.as_str() {
-                "filename" => "primary_filename",
-                "file_size" => "a.file_size",
+                "filename"   => "primary_filename",
+                "file_size"  => "a.file_size",
                 "media_type" => "a.media_type",
-                _ => "a.created_at_fs",
+                _            => "a.created_at_fs",
             };
             let dir = if s.direction == "asc" { "ASC" } else { "DESC" };
             format!("ORDER BY {} {} NULLS LAST", field, dir)
@@ -111,6 +115,7 @@ pub fn search_assets(
         None => "ORDER BY a.created_at_fs DESC NULLS LAST".to_string(),
     };
 
+    // Count query
     let count_sql = format!("SELECT COUNT(*) FROM assets a {}", where_clause);
     let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
     let total: i64 = conn.query_row(&count_sql, params_refs.as_slice(), |row| row.get(0))
@@ -130,7 +135,7 @@ pub fn search_assets(
         where_clause, sort_clause
     );
 
-    // Rebuild params for data query (same order)
+    // Rebuild params for data query
     let mut data_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
     if has_query {
         let pattern = format!("%{}%", query_str);
@@ -147,7 +152,7 @@ pub fn search_assets(
         for id in drive_ids { data_params.push(Box::new(id.clone())); }
     }
     if let Some(from) = filters.date_from { data_params.push(Box::new(from)); }
-    if let Some(to) = filters.date_to { data_params.push(Box::new(to)); }
+    if let Some(to)   = filters.date_to   { data_params.push(Box::new(to)); }
     if let Some(tag_ids) = &filters.tag_ids {
         for id in tag_ids { data_params.push(Box::new(id.clone())); }
     }
@@ -160,23 +165,23 @@ pub fn search_assets(
 
     let assets = stmt.query_map(data_refs.as_slice(), |row| {
         Ok(AssetSummary {
-            id: row.get(0)?,
-            media_type: row.get(1)?,
-            file_extension: row.get(2)?,
-            file_size: row.get(3)?,
-            duration_ms: row.get(4)?,
-            width: row.get(5)?,
-            height: row.get(6)?,
-            codec: row.get(7)?,
-            created_at_fs: row.get(8)?,
-            thumbnail_path: row.get(9)?,
-            is_orphaned: row.get::<_, i64>(10)? != 0,
-            filename: row.get::<_, Option<String>>(11)?.unwrap_or_default(),
+            id:                 row.get(0)?,
+            media_type:         row.get(1)?,
+            file_extension:     row.get(2)?,
+            file_size:          row.get(3)?,
+            duration_ms:        row.get(4)?,
+            width:              row.get(5)?,
+            height:             row.get(6)?,
+            codec:              row.get(7)?,
+            created_at_fs:      row.get(8)?,
+            thumbnail_path:     row.get(9)?,
+            is_orphaned:        row.get::<_, i64>(10)? != 0,
+            filename:           row.get::<_, Option<String>>(11)?.unwrap_or_default(),
             primary_drive_name: row.get(12)?,
             primary_drive_online: row.get::<_, Option<i64>>(13)?.unwrap_or(0) != 0,
-            location_count: row.get(14)?,
-            tag_count: row.get(15)?,
-            marker_count: row.get(16)?,
+            location_count:     row.get(14)?,
+            tag_count:          row.get(15)?,
+            marker_count:       row.get(16)?,
         })
     }).map_err(|e| crate::error::AppError::Database(e.to_string()))?
     .filter_map(|r| r.ok())
@@ -185,7 +190,6 @@ pub fn search_assets(
     Ok(AssetSearchResult { data: assets, total, page, page_size })
 }
 
-/// Get full asset detail including locations, tags, and markers.
 pub fn get_asset(conn: &Connection, asset_id: &str) -> Result<AssetDetail, crate::error::AppError> {
     let asset = conn.query_row(
         "SELECT id, media_type, file_extension, file_size, duration_ms, width, height,
@@ -194,12 +198,13 @@ pub fn get_asset(conn: &Connection, asset_id: &str) -> Result<AssetDetail, crate
          FROM assets WHERE id = ?1",
         params![asset_id],
         |row| Ok((
-            row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?,
-            row.get::<_, i64>(3)?, row.get::<_, Option<i64>>(4)?, row.get::<_, Option<i64>>(5)?,
-            row.get::<_, Option<i64>>(6)?, row.get::<_, Option<String>>(7)?,
-            row.get::<_, Option<f64>>(8)?, row.get::<_, Option<i64>>(9)?,
-            row.get::<_, Option<i64>>(10)?, row.get::<_, Option<i64>>(11)?,
-            row.get::<_, Option<String>>(12)?, row.get::<_, i64>(13)?,
+            row.get::<_, String>(0)?,  row.get::<_, String>(1)?,  row.get::<_, String>(2)?,
+            row.get::<_, i64>(3)?,     row.get::<_, Option<i64>>(4)?,
+            row.get::<_, Option<i64>>(5)?,  row.get::<_, Option<i64>>(6)?,
+            row.get::<_, Option<String>>(7)?, row.get::<_, Option<f64>>(8)?,
+            row.get::<_, Option<i64>>(9)?,   row.get::<_, Option<i64>>(10)?,
+            row.get::<_, Option<i64>>(11)?,  row.get::<_, Option<String>>(12)?,
+            row.get::<_, i64>(13)?,
         )),
     ).map_err(|_| crate::error::AppError::NotFound("Asset not found".to_string()))?;
 
@@ -253,7 +258,6 @@ pub fn get_asset(conn: &Connection, asset_id: &str) -> Result<AssetDetail, crate
     })
 }
 
-/// Delete an asset and all associated data.
 pub fn delete_asset(conn: &Connection, asset_id: &str) -> Result<(), crate::error::AppError> {
     conn.execute("DELETE FROM assets WHERE id = ?1", params![asset_id])
         .map_err(|e| crate::error::AppError::Database(e.to_string()))?;
