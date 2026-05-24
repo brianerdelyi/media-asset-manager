@@ -1,6 +1,7 @@
 //! Media Asset Manager — Tauri backend entry point.
 
 pub mod assets;
+pub mod automark;
 pub mod commands;
 pub mod db;
 pub mod drives;
@@ -8,6 +9,7 @@ pub mod error;
 pub mod indexer;
 pub mod library;
 pub mod models;
+pub mod transcription;
 
 use rusqlite::Connection;
 use std::sync::{Arc, Mutex};
@@ -24,42 +26,75 @@ pub fn run() {
     let conn = db::connection::open(&db_path).expect("Failed to open library database");
     library::resolve_thumbnails_path().expect("Failed to create thumbnails directory");
     conn.execute("UPDATE drives SET is_online = 0", []).expect("Failed to reset drive online status");
-    let conn_read = db::connection::open_readonly(&db_path).expect("Failed to open read-only connection");
+    let conn_read  = db::connection::open_readonly(&db_path).expect("Failed to open read-only connection");
     let conn_index = db::connection::open_for_indexer(&db_path).expect("Failed to open indexer connection");
-    let db = Arc::new(Mutex::new(conn));
-    let db_read = Arc::new(Mutex::new(conn_read));
+    let db       = Arc::new(Mutex::new(conn));
+    let db_read  = Arc::new(Mutex::new(conn_read));
     let db_index = Arc::new(Mutex::new(conn_index));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .manage(AppState { db: Arc::clone(&db), db_read: Arc::clone(&db_read), db_index: Arc::clone(&db_index) })
+        .manage(AppState {
+            db: Arc::clone(&db),
+            db_read: Arc::clone(&db_read),
+            db_index: Arc::clone(&db_index),
+        })
         .manage(commands::indexing::IndexingState::new())
+        .manage(transcription::job::TranscriptionState::new())
         .invoke_handler(tauri::generate_handler![
+            // Drives
             commands::drives::drive_register,
             commands::drives::drive_list,
             commands::drives::drive_remove,
             commands::drives::drive_remove_confirm,
             commands::drives::drive_rename,
             commands::drives::drive_update_media_types,
+            // Indexing
             commands::indexing::index_start,
             commands::indexing::index_cancel,
             commands::indexing::index_cleanup,
+            // Assets
             commands::assets::asset_search,
             commands::assets::asset_get,
             commands::assets::asset_delete,
             commands::assets::asset_open,
             commands::assets::asset_reveal,
+            // Markers
             commands::markers::marker_create,
             commands::markers::marker_update,
             commands::markers::marker_delete,
+            // Clip export
             commands::clip_export::clip_export,
+            // Settings
             commands::settings::settings_get_stats,
+            commands::settings::settings_get_filter_counts,
             commands::settings::settings_get,
             commands::settings::settings_set,
             commands::settings::settings_get_asset_names,
+            commands::settings::settings_get_asset_metadata,
             commands::settings::settings_delete_orphaned,
             commands::settings::settings_purge_thumbnails,
+            // Tags
+            commands::tags::tag_list,
+            commands::tags::tag_create,
+            commands::tags::tag_delete,
+            commands::tags::asset_tags_set,
+            // Transcription — model management
+            commands::transcription::transcription_check_environment,
+            commands::transcription::model_list,
+            commands::transcription::model_delete,
+            commands::transcription::model_download,
+            // Transcription — jobs
+            commands::transcription::transcription_estimate,
+            commands::transcription::transcription_start,
+            commands::transcription::transcription_cancel,
+            commands::transcription::transcription_get,
+            commands::transcription::transcription_delete,
+            // Auto-marking
+            commands::automark::keyword_list,
+            commands::automark::keyword_save,
+            commands::automark::automark_run,
         ])
         .setup(move |app| {
             drives::watcher::start(app.handle().clone(), Arc::clone(&db));

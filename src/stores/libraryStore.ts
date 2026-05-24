@@ -1,9 +1,9 @@
-// Library store — manages asset search results, filters, selected asset, and asset name overrides.
+// Library store — manages asset search results, filters, selected asset, asset names, and metadata.
 
 import { create } from 'zustand';
 import type { AssetDetail, AssetSearchFilters, AssetSearchResult, AssetSort, AssetSummary } from '../types/asset';
 import { searchAssets, getAsset, deleteAsset } from '../commands/assets';
-import { getAssetNames } from '../commands/settings';
+import { getAssetNames, getAssetMetadata, type AssetMetadataEntry } from '../commands/settings';
 
 interface LibraryStore {
   results: AssetSummary[];
@@ -16,8 +16,8 @@ interface LibraryStore {
   sort: AssetSort;
   selectedAsset: AssetDetail | null;
   detailLoading: boolean;
-  // Map of asset_id -> custom name (from settings table)
   assetNames: Record<string, string>;
+  assetMetadata: Record<string, AssetMetadataEntry>;
 
   search: () => Promise<void>;
   setFilters: (filters: Partial<AssetSearchFilters>) => void;
@@ -44,6 +44,7 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
   selectedAsset: null,
   detailLoading: false,
   assetNames: {},
+  assetMetadata: {},
 
   search: async () => {
     const { filters, sort, page, pageSize } = get();
@@ -51,8 +52,9 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
     try {
       const result: AssetSearchResult = await searchAssets(filters, sort, page, pageSize);
       set({ results: result.data, total: result.total, loading: false });
-      // Load asset name overrides in parallel — don't block the grid
+      // Load name and metadata overrides in parallel — non-blocking
       getAssetNames().then(names => set({ assetNames: names })).catch(() => {});
+      getAssetMetadata().then(metadata => set({ assetMetadata: metadata })).catch(() => {});
     } catch (e) {
       set({ error: String(e), loading: false });
     }
@@ -71,7 +73,7 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
     try {
       const asset = await getAsset(assetId);
       set({ selectedAsset: asset, detailLoading: false });
-    } catch (e) {
+    } catch (_) {
       set({ detailLoading: false });
     }
   },
@@ -94,8 +96,8 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
       const asset = await getAsset(selectedAsset.id);
       set({ selectedAsset: asset });
     } catch (_) {}
-    // Also refresh asset names in case one was just saved
     getAssetNames().then(names => set({ assetNames: names })).catch(() => {});
+    getAssetMetadata().then(metadata => set({ assetMetadata: metadata })).catch(() => {});
   },
 
   refreshAssetNames: async () => {

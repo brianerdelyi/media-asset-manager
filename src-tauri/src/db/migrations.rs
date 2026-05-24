@@ -12,6 +12,7 @@ pub fn run(conn: &Connection) -> Result<(), crate::error::AppError> {
 
     apply(conn, 1, "initial_schema",        migration_001_initial_schema)?;
     apply(conn, 2, "drive_media_types",     migration_002_drive_media_types)?;
+    apply(conn, 3, "transcripts",           migration_003_transcripts)?;
     Ok(())
 }
 
@@ -132,11 +133,57 @@ fn migration_001_initial_schema(conn: &Connection) -> Result<(), crate::error::A
     ").map_err(|e| crate::error::AppError::Database(e.to_string()))
 }
 
-/// Migration 002 — add index_media_types column to drives table.
-/// Uses ADD COLUMN which is safe on existing databases — adds the column
-/// with a DEFAULT so existing rows get 'video,image,audio' automatically.
 fn migration_002_drive_media_types(conn: &Connection) -> Result<(), crate::error::AppError> {
     conn.execute_batch(
         "ALTER TABLE drives ADD COLUMN index_media_types TEXT NOT NULL DEFAULT 'video,image,audio';"
     ).map_err(|e| crate::error::AppError::Database(e.to_string()))
+}
+
+/// Migration 003 — transcripts table + FTS5 full-text search index.
+/// Stores timestamped transcription segments per asset.
+/// FTS5 enables full-text search across all transcript content.
+fn migration_003_transcripts(conn: &Connection) -> Result<(), crate::error::AppError> {
+    conn.execute_batch("
+        CREATE TABLE IF NOT EXISTS transcripts (
+            id            TEXT PRIMARY KEY,
+            asset_id      TEXT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+            engine        TEXT NOT NULL DEFAULT 'whisper.cpp',
+            model         TEXT NOT NULL,
+            language      TEXT,
+            detected_lang TEXT,
+            segments      TEXT NOT NULL,
+            created_at    INTEGER NOT NULL,
+            duration_ms   INTEGER
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_transcripts_asset_id ON transcripts(asset_id);
+
+        CREATE VIRTUAL TABLE IF NOT EXISTS transcript_fts USING fts5(
+            asset_id UNINDEXED,
+            text,
+            content='transcripts',
+            content_rowid='rowid',
+            tokenize='porter ascii'
+        );
+
+        CREATE TRIGGER IF NOT EXISTS transcript_fts_insert
+        AFTER INSERT ON transcripts BEGIN
+            INSERT INTO transcript_fts(rowid, asset_id, text)
+            VALUES (new.rowid, new.asset_id, new.segments);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS transcript_fts_delete
+        AFTER DELETE ON transcripts BEGIN
+            INSERT INTO transcript_fts(transcript_fts, rowid, asset_id, text)
+            VALUES ('delete', old.rowid, old.asset_id, old.segments);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS transcript_fts_update
+        AFTER UPDATE ON transcripts BEGIN
+            INSERT INTO transcript_fts(transcript_fts, rowid, asset_id, text)
+            VALUES ('delete', old.rowid, old.asset_id, old.segments);
+            INSERT INTO transcript_fts(rowid, asset_id, text)
+            VALUES (new.rowid, new.asset_id, new.segments);
+        END;
+    ").map_err(|e| crate::error::AppError::Database(e.to_string()))
 }

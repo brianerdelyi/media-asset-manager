@@ -9,6 +9,8 @@ import { Sidebar } from './components/shell/Sidebar';
 import { useIndexingStore } from './stores/indexingStore';
 import { useDriveStore } from './stores/driveStore';
 import { useThemeStore } from './stores/themeStore';
+import { showToast } from './stores/toastStore';
+import { setupTranscriptionListeners } from './stores/transcriptionStore';
 import type { IndexingProgressEvent, IndexingCompleteEvent } from './types/indexing';
 
 type View = 'library' | 'drives' | 'settings';
@@ -33,17 +35,41 @@ function App() {
   }, [resolvedTheme]);
 
   useEffect(() => {
-    const unlistenProgress    = listen<IndexingProgressEvent>('indexing:progress',  (e) => updateProgress(e.payload));
-    const unlistenComplete    = listen<IndexingCompleteEvent>('indexing:complete',   (e) => completeJob(e.payload));
-    const unlistenCancelled   = listen<{ job_id: string }>('indexing:cancelled',    (e) => cancelledJob(e.payload.job_id));
-    const unlistenConnected   = listen<{ drive_id: string }>('drive:connected',     (e) => setDriveOnline(e.payload.drive_id, true));
-    const unlistenDisconnected = listen<{ drive_id: string }>('drive:disconnected', (e) => setDriveOnline(e.payload.drive_id, false));
+    const unlistenProgress     = listen<IndexingProgressEvent>('indexing:progress',   (e) => updateProgress(e.payload));
+    const unlistenComplete     = listen<IndexingCompleteEvent>('indexing:complete',    (e) => completeJob(e.payload));
+    const unlistenCancelled    = listen<{ job_id: string }>('indexing:cancelled',      (e) => cancelledJob(e.payload.job_id));
+    const unlistenConnected    = listen<{ drive_id: string }>('drive:connected',       (e) => setDriveOnline(e.payload.drive_id, true));
+    const unlistenDisconnected = listen<{ drive_id: string }>('drive:disconnected',    (e) => setDriveOnline(e.payload.drive_id, false));
+
+    const unlistenTxComplete    = listen<{ asset_id: string }>('transcription:complete', () => {
+      showToast('Transcript ready', 'success');
+    });
+    const unlistenTxCancelled   = listen('transcription:cancelled', () => {
+      showToast('Transcription cancelled', 'info');
+    });
+    const unlistenTxError       = listen<{ error: string }>('transcription:error', (e) => {
+      showToast(`Transcription failed: ${e.payload.error}`, 'error');
+    });
+    const unlistenModelComplete = listen<{ model_name: string }>('model:download:complete', (e) => {
+      showToast(`Model "${e.payload.model_name}" downloaded`, 'success');
+    });
+    const unlistenModelError    = listen<{ model_name: string; error: string }>('model:download:error', (e) => {
+      showToast(`Download failed: ${e.payload.error}`, 'error');
+    });
+
+    setupTranscriptionListeners();
+
     return () => {
       unlistenProgress.then(fn => fn());
       unlistenComplete.then(fn => fn());
       unlistenCancelled.then(fn => fn());
       unlistenConnected.then(fn => fn());
       unlistenDisconnected.then(fn => fn());
+      unlistenTxComplete.then(fn => fn());
+      unlistenTxCancelled.then(fn => fn());
+      unlistenTxError.then(fn => fn());
+      unlistenModelComplete.then(fn => fn());
+      unlistenModelError.then(fn => fn());
     };
   }, []);
 

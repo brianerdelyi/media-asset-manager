@@ -1,0 +1,10 @@
+  const videoRef = useRef<VideoPlayerHandle>(null);
+  const { refreshSelected } = useLibraryStore();
+  const { models, activeJob, setActiveJob, fetchModels } = useTranscriptionStore();
+  const installedModels = models.filter(m => m.installed);
+
+  // Fetch models on mount if store is empty — happens when asset detail
+  // is opened without visiting Settings first
+  useEffect(() => {
+    if (models.length === 0) fetchModels();
+  }, []);

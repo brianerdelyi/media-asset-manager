@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Transparent background — macOS provides the squircle shape -->
+  <!-- Cards scaled to 80% with ~10% padding on each side -->
+  <!-- Back layer — green, 35% opacity -->
+  <rect x="223" y="315" width="496" height="312" rx="42" fill="#30D158" opacity="0.35"/>
+  <!-- Middle layer — purple, 65% opacity -->
+  <rect x="263" y="355" width="496" height="312" rx="42" fill="#BF5AF2" opacity="0.65"/>
+  <!-- Front layer — blue, full opacity -->
+  <rect x="303" y="395" width="496" height="312" rx="42" fill="#0A84FF" opacity="1"/>
+</svg>
