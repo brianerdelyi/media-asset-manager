@@ -59,7 +59,6 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
     : tags;
 
   const activeTagCount = filters.tag_ids?.length ?? 0;
-  const statusIsActive = filters.status === 'orphaned' || filters.status === 'missing';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>

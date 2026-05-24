@@ -216,8 +216,6 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
     try {
       const result = await transcriptionStart(asset.id, model, language, prompt);
       setActiveJob({ jobId: result.job_id, assetId: asset.id, percent: 0 });
-
-      // If auto-mark requested, run it once transcription completes
       if (runAutoMark) {
         const unlisten = await listen<{ asset_id: string }>('transcription:complete', async (e) => {
           if (e.payload.asset_id === asset.id) {
@@ -392,12 +390,11 @@ export function AssetDetailView({ asset, onClose }: AssetDetailViewProps) {
             {transcript && !isTranscribing ? (
               <>
                 <TranscriptPanel
-                  transcript={transcript} currentMs={currentMs}
+                  transcript={transcript}
+                  currentMs={currentMs}
                   onSeek={ms => videoRef.current?.seekTo(ms)}
-                  onRetranscribe={() => setTxDialogOpen(true)}
                   onDelete={handleDeleteTranscript}
                 />
-                {/* Auto-Mark button — shown when transcript exists */}
                 <button
                   onClick={handleRunAutoMark}
                   disabled={autoMarking}

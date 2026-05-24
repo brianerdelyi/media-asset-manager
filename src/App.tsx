@@ -9,7 +9,7 @@ import { Sidebar } from './components/shell/Sidebar';
 import { useIndexingStore } from './stores/indexingStore';
 import { useDriveStore } from './stores/driveStore';
 import { useThemeStore } from './stores/themeStore';
-import { useToastStore } from './stores/toastStore';
+import { showToast } from './stores/toastStore';
 import { setupTranscriptionListeners } from './stores/transcriptionStore';
 import type { IndexingProgressEvent, IndexingCompleteEvent } from './types/indexing';
 
@@ -20,7 +20,6 @@ function App() {
   const { updateProgress, completeJob, cancelledJob, currentJob } = useIndexingStore();
   const { setDriveOnline } = useDriveStore();
   const { resolvedTheme } = useThemeStore();
-  const { addToast } = useToastStore();
 
   const isIndexing = !!currentJob;
 
@@ -36,31 +35,28 @@ function App() {
   }, [resolvedTheme]);
 
   useEffect(() => {
-    // Indexing events
     const unlistenProgress     = listen<IndexingProgressEvent>('indexing:progress',   (e) => updateProgress(e.payload));
     const unlistenComplete     = listen<IndexingCompleteEvent>('indexing:complete',    (e) => completeJob(e.payload));
-    const unlistenCancelled    = listen<{ job_id: string }>('indexing:cancelled',     (e) => cancelledJob(e.payload.job_id));
-    const unlistenConnected    = listen<{ drive_id: string }>('drive:connected',      (e) => setDriveOnline(e.payload.drive_id, true));
-    const unlistenDisconnected = listen<{ drive_id: string }>('drive:disconnected',   (e) => setDriveOnline(e.payload.drive_id, false));
+    const unlistenCancelled    = listen<{ job_id: string }>('indexing:cancelled',      (e) => cancelledJob(e.payload.job_id));
+    const unlistenConnected    = listen<{ drive_id: string }>('drive:connected',       (e) => setDriveOnline(e.payload.drive_id, true));
+    const unlistenDisconnected = listen<{ drive_id: string }>('drive:disconnected',    (e) => setDriveOnline(e.payload.drive_id, false));
 
-    // Transcription toast notifications
-    const unlistenTxComplete = listen<{ asset_id: string }>('transcription:complete', () => {
-      addToast('Transcript ready', 'success');
+    const unlistenTxComplete    = listen<{ asset_id: string }>('transcription:complete', () => {
+      showToast('Transcript ready', 'success');
     });
-    const unlistenTxCancelled = listen('transcription:cancelled', () => {
-      addToast('Transcription cancelled', 'info');
+    const unlistenTxCancelled   = listen('transcription:cancelled', () => {
+      showToast('Transcription cancelled', 'info');
     });
-    const unlistenTxError = listen<{ error: string }>('transcription:error', (e) => {
-      addToast(`Transcription failed: ${e.payload.error}`, 'error');
+    const unlistenTxError       = listen<{ error: string }>('transcription:error', (e) => {
+      showToast(`Transcription failed: ${e.payload.error}`, 'error');
     });
     const unlistenModelComplete = listen<{ model_name: string }>('model:download:complete', (e) => {
-      addToast(`Model "${e.payload.model_name}" downloaded`, 'success');
+      showToast(`Model "${e.payload.model_name}" downloaded`, 'success');
     });
-    const unlistenModelError = listen<{ model_name: string; error: string }>('model:download:error', (e) => {
-      addToast(`Download failed: ${e.payload.error}`, 'error');
+    const unlistenModelError    = listen<{ model_name: string; error: string }>('model:download:error', (e) => {
+      showToast(`Download failed: ${e.payload.error}`, 'error');
     });
 
-    // Set up transcription store listeners
     setupTranscriptionListeners();
 
     return () => {

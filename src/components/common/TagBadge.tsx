@@ -1,10 +1,9 @@
 // TagBadge — small pill showing a tag name with optional remove button.
 
 import { X } from 'lucide-react';
-import type { Tag } from '../../types/tag';
 
 interface TagBadgeProps {
-  tag: Tag;
+  tag: { id: string; name_display: string };
   onRemove?: (tagId: string) => void;
 }
 

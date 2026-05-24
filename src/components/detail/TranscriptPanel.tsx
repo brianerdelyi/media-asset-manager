@@ -10,7 +10,6 @@ interface TranscriptPanelProps {
   transcript: Transcript;
   currentMs: number;
   onSeek: (ms: number) => void;
-  onRetranscribe: () => void;
   onDelete: () => void;
 }
 
@@ -32,7 +31,7 @@ function getActiveSegmentIndex(segments: TranscriptSegment[], currentMs: number)
   return -1;
 }
 
-export function TranscriptPanel({ transcript, currentMs, onSeek, onRetranscribe, onDelete }: TranscriptPanelProps) {
+export function TranscriptPanel({ transcript, currentMs, onSeek, onDelete }: TranscriptPanelProps) {
   const activeIndex = getActiveSegmentIndex(transcript.segments, currentMs);
   const activeRef = useRef<HTMLButtonElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -72,31 +71,24 @@ export function TranscriptPanel({ transcript, currentMs, onSeek, onRetranscribe,
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-
-      {/* Header row */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>
           Transcript
         </p>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          {/* Copy */}
           <button onClick={copyTranscript} title="Copy transcript" style={BTN}
             onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-secondary)')}
             onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}>
             <Copy size={11} />
           </button>
-
-          {/* Delete — two-step confirm */}
           {confirmDelete ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Delete?</span>
-              <button
-                onClick={() => { setConfirmDelete(false); onDelete(); }}
+              <button onClick={() => { setConfirmDelete(false); onDelete(); }}
                 style={{ fontSize: '10px', color: 'var(--color-danger)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}>
                 Yes
               </button>
-              <button
-                onClick={() => setConfirmDelete(false)}
+              <button onClick={() => setConfirmDelete(false)}
                 style={{ fontSize: '10px', color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}>
                 No
               </button>
@@ -111,14 +103,12 @@ export function TranscriptPanel({ transcript, currentMs, onSeek, onRetranscribe,
         </div>
       </div>
 
-      {/* Engine/model subtitle */}
       {subtitle && (
         <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', margin: 0, fontFamily: 'var(--font-mono)' }}>
           {subtitle}
         </p>
       )}
 
-      {/* Segments */}
       {transcript.segments.length === 0 ? (
         <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', margin: 0, padding: '8px 0' }}>
           No speech detected in this clip.
