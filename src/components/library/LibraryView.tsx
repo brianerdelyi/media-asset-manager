@@ -1,9 +1,9 @@
-// Main library view — asset grid with search, filters, and detail view.
+// Main library view — infinite scroll asset grid with size control and filters.
 
-import { useEffect } from 'react';
-import { ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { SlidersHorizontal } from 'lucide-react';
 import { useLibraryStore } from '../../stores/libraryStore';
-import { useThemeStore } from '../../stores/themeStore';
+import { useThemeStore, type CardSize, CARD_SIZE_PX } from '../../stores/themeStore';
 import { useTranscriptionStore } from '../../stores/transcriptionStore';
 import { useIndexingStore } from '../../stores/indexingStore';
 import { AssetCard } from './AssetCard';
@@ -27,28 +27,37 @@ const CTRL_BASE: React.CSSProperties = {
   boxSizing: 'border-box' as const,
 };
 
-// Height of the status bar when visible
 const STATUS_BAR_HEIGHT = 28;
+const SIZE_LABELS: CardSize[] = ['S', 'M', 'L'];
 
 export function LibraryView() {
   const {
-    results, total, page, pageSize, loading, error,
+    results, total, hasMore, loading, loadingMore, error,
     filters, sort, selectedAsset, detailLoading,
-    search, setFilters, setSort, setPage, selectAsset, clearSelection,
+    search, loadMore, setFilters, setSort, selectAsset, clearSelection,
   } = useLibraryStore();
 
-  const { filterPanelVisible, toggleFilterPanel } = useThemeStore();
+  const { filterPanelVisible, toggleFilterPanel, cardSize, setCardSize } = useThemeStore();
   const { activeJob: txJob } = useTranscriptionStore();
   const { currentJob: indexJob } = useIndexingStore();
 
-  // Status bar is visible when either indexing or transcribing
-  const statusBarVisible = !!(txJob || (indexJob && indexJob.status === 'running'));
   const statusBarRows = (txJob ? 1 : 0) + (indexJob && indexJob.status === 'running' ? 1 : 0);
-  const statusBarHeight = statusBarVisible ? statusBarRows * STATUS_BAR_HEIGHT : 0;
+  const statusBarHeight = statusBarRows > 0 ? statusBarRows * STATUS_BAR_HEIGHT : 0;
+
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { search(); }, []);
 
-  const totalPages = Math.ceil(total / pageSize);
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMore(); },
+      { rootMargin: '200px' }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadMore, results.length]);
 
   const activeFilterCount = [
     filters.media_types?.length ?? 0,
@@ -90,14 +99,15 @@ export function LibraryView() {
     );
   }
 
+  const minCardPx = CARD_SIZE_PX[cardSize];
+
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden', paddingBottom: statusBarHeight, boxSizing: 'border-box' }}>
 
       {/* Filter sidebar */}
       <div style={{
         width: filterPanelVisible ? '180px' : '0',
-        flexShrink: 0,
-        overflow: 'hidden',
+        flexShrink: 0, overflow: 'hidden',
         transition: 'width 0.2s ease',
         borderRight: filterPanelVisible ? '1px solid var(--border-subtle)' : 'none',
         background: 'var(--bg-app)',
@@ -118,59 +128,26 @@ export function LibraryView() {
           borderBottom: '1px solid var(--border-subtle)',
           flexShrink: 0,
         }}>
-
-          {/* Filters button — fixed 108px */}
+          {/* Filters button */}
           <div style={{
-            ...CTRL_BASE,
-            width: '108px', flexShrink: 0,
+            ...CTRL_BASE, width: '108px', flexShrink: 0,
             overflow: 'hidden', gap: 0, padding: 0,
             background: filterPanelVisible ? 'var(--color-accent-subtle)' : 'var(--bg-raised)',
             borderColor: filterPanelVisible ? 'rgba(10,132,255,0.3)' : 'var(--border-default)',
             color: filterPanelVisible ? 'var(--color-accent)' : 'var(--text-secondary)',
           }}>
-            <button
-              onClick={toggleFilterPanel}
-              title={filterPanelVisible ? 'Hide filters' : 'Show filters'}
-              style={{
-                flex: 1, height: '100%',
-                display: 'flex', alignItems: 'center', gap: '5px',
-                padding: '0 8px',
-                background: 'none', border: 'none',
-                borderRight: hasFilters ? '1px solid var(--border-subtle)' : 'none',
-                color: 'inherit', cursor: 'pointer', fontSize: '12px',
-              }}
-            >
+            <button onClick={toggleFilterPanel} title={filterPanelVisible ? 'Hide filters' : 'Show filters'}
+              style={{ flex: 1, height: '100%', display: 'flex', alignItems: 'center', gap: '5px', padding: '0 8px', background: 'none', border: 'none', borderRight: hasFilters ? '1px solid var(--border-subtle)' : 'none', color: 'inherit', cursor: 'pointer', fontSize: '12px' }}>
               <SlidersHorizontal size={13} />
               <span>Filters</span>
             </button>
-            <div style={{
-              width: '28px', height: '100%', flexShrink: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
+            <div style={{ width: '28px', height: '100%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {hasFilters && (
-                <button
-                  onClick={clearAllFilters}
+                <button onClick={clearAllFilters}
                   title={`Clear ${activeFilterCount} filter${activeFilterCount !== 1 ? 's' : ''}`}
-                  style={{
-                    width: '100%', height: '100%',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: 'var(--color-accent)',
-                    fontSize: '10px', fontWeight: 600,
-                    fontFamily: 'var(--font-mono)',
-                  }}
-                  onMouseEnter={e => {
-                    const el = e.currentTarget;
-                    el.style.background = 'rgba(255,69,58,0.1)';
-                    el.style.color = 'var(--color-danger)';
-                    el.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
-                  }}
-                  onMouseLeave={e => {
-                    const el = e.currentTarget;
-                    el.style.background = 'none';
-                    el.style.color = 'var(--color-accent)';
-                    el.innerHTML = String(activeFilterCount);
-                  }}
+                  style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-accent)', fontSize: '10px', fontWeight: 600, fontFamily: 'var(--font-mono)' }}
+                  onMouseEnter={e => { const el = e.currentTarget; el.style.background = 'rgba(255,69,58,0.1)'; el.style.color = 'var(--color-danger)'; el.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`; }}
+                  onMouseLeave={e => { const el = e.currentTarget; el.style.background = 'none'; el.style.color = 'var(--color-accent)'; el.innerHTML = String(activeFilterCount); }}
                 >
                   {activeFilterCount}
                 </button>
@@ -180,33 +157,39 @@ export function LibraryView() {
 
           {/* Search */}
           <div style={{ flex: 1 }}>
-            <SearchBar
-              onSearch={(q) => setFilters({ query: q || undefined })}
-              initialValue={filters.query ?? ''}
-            />
+            <SearchBar onSearch={(q) => setFilters({ query: q || undefined })} initialValue={filters.query ?? ''} />
           </div>
 
-          {/* Sort — custom dropdown using design system colours */}
-          <SortDropdown
-            options={sortOptions}
-            value={sort}
-            onChange={setSort}
-            serialize={v => JSON.stringify(v)}
-          />
+          {/* Sort */}
+          <SortDropdown options={sortOptions} value={sort} onChange={setSort} serialize={v => JSON.stringify(v)} />
+
+          {/* Card size — S / M / L segmented control */}
+          <div style={{ display: 'flex', height: '28px', flexShrink: 0, border: '1px solid var(--border-default)', borderRadius: '6px', overflow: 'hidden' }}>
+            {SIZE_LABELS.map((s, i) => (
+              <button key={s} onClick={() => setCardSize(s)}
+                title={{ S: 'Small cards', M: 'Medium cards', L: 'Large cards' }[s]}
+                style={{
+                  width: '28px', height: '100%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: cardSize === s ? 'var(--color-accent)' : 'var(--bg-raised)',
+                  color: cardSize === s ? '#fff' : 'var(--text-tertiary)',
+                  border: 'none',
+                  borderLeft: i > 0 ? '1px solid var(--border-default)' : 'none',
+                  cursor: 'pointer', fontSize: '11px', fontWeight: 500,
+                }}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
 
           {/* Asset count */}
-          <span style={{
-            fontSize: '11px',
-            color: 'var(--text-tertiary)',
-            whiteSpace: 'nowrap',
-            flexShrink: 0,
-            lineHeight: `${CTRL_HEIGHT}px`,
-          }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', whiteSpace: 'nowrap', flexShrink: 0 }}>
             {total.toLocaleString()} {total === 1 ? 'asset' : 'assets'}
           </span>
         </div>
 
-        {/* Grid */}
+        {/* Grid — infinite scroll */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
           {error && (
             <div style={{ background: 'rgba(255,69,58,0.1)', border: '1px solid rgba(255,69,58,0.3)', borderRadius: '6px', padding: '10px 14px', marginBottom: '16px', fontSize: '13px', color: 'var(--color-danger)' }}>
@@ -228,35 +211,31 @@ export function LibraryView() {
           )}
 
           {results.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: `repeat(auto-fill, minmax(${minCardPx}px, 1fr))`,
+              gap: '12px',
+            }}>
               {results.map(asset => (
-                <AssetCard
-                  key={asset.id}
-                  asset={asset}
-                  isSelected={false}
-                  onClick={() => selectAsset(asset.id)}
-                />
+                <AssetCard key={asset.id} asset={asset} cardSize={cardSize} isSelected={false} onClick={() => selectAsset(asset.id)} />
               ))}
             </div>
           )}
 
-          {totalPages > 1 && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '24px' }}>
-              <button
-                onClick={() => setPage(page - 1)} disabled={page <= 1}
-                style={{ ...CTRL_BASE, gap: '4px', padding: '0 10px', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.4 : 1 }}
-              >
-                <ChevronLeft size={14} /> Prev
-              </button>
-              <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                {page} / {totalPages}
-              </span>
-              <button
-                onClick={() => setPage(page + 1)} disabled={page >= totalPages}
-                style={{ ...CTRL_BASE, gap: '4px', padding: '0 10px', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.4 : 1 }}
-              >
-                Next <ChevronRight size={14} />
-              </button>
+          {/* Scroll sentinel */}
+          <div ref={sentinelRef} style={{ height: '1px' }} />
+
+          {loadingMore && (
+            <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--text-tertiary)' }}>
+              <p style={{ fontSize: '12px', margin: 0 }}>Loading…</p>
+            </div>
+          )}
+
+          {!hasMore && results.length > 0 && total > results.length && (
+            <div style={{ textAlign: 'center', padding: '16px 0' }}>
+              <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: 0 }}>
+                All {total.toLocaleString()} assets loaded
+              </p>
             </div>
           )}
         </div>

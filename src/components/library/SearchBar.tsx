@@ -29,6 +29,10 @@ export function SearchBar({ onSearch, initialValue = '' }: SearchBarProps) {
         onChange={e => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Search assets…"
+        spellCheck={false}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
         style={{
           width: '100%', height: '28px',
           background: 'var(--bg-raised)',
@@ -39,6 +43,7 @@ export function SearchBar({ onSearch, initialValue = '' }: SearchBarProps) {
           color: 'var(--text-primary)',
           outline: 'none',
           boxSizing: 'border-box',
+          WebkitAppearance: 'none',
         }}
         onFocus={e => (e.target.style.borderColor = 'var(--color-accent)')}
         onBlur={e => (e.target.style.borderColor = 'var(--border-default)')}

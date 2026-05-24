@@ -1,18 +1,27 @@
-// Theme store — manages light/dark mode, sidebar, and filter panel state.
+// Theme store — manages light/dark mode, sidebar, filter panel, and card size.
 
 import { create } from 'zustand';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
+export type CardSize = 'S' | 'M' | 'L';
+
+export const CARD_SIZE_PX: Record<CardSize, number> = {
+  S: 150,
+  M: 200,
+  L: 270,
+};
 
 interface ThemeStore {
   mode: ThemeMode;
   sidebarExpanded: boolean;
   filterPanelVisible: boolean;
   resolvedTheme: 'light' | 'dark';
+  cardSize: CardSize;
   setMode: (mode: ThemeMode) => void;
   toggleSidebar: () => void;
   setSidebarExpanded: (expanded: boolean) => void;
   toggleFilterPanel: () => void;
+  setCardSize: (size: CardSize) => void;
 }
 
 function getSystemTheme(): 'light' | 'dark' {
@@ -37,9 +46,10 @@ function applyTheme(mode: ThemeMode) {
   return resolved;
 }
 
-const savedMode = (localStorage.getItem('theme-mode') as ThemeMode) ?? 'system';
-const savedSidebar = localStorage.getItem('sidebar-expanded') === 'true';
-const savedFilter = localStorage.getItem('filter-panel-visible') !== 'false'; // default visible
+const savedMode     = (localStorage.getItem('theme-mode') as ThemeMode)       ?? 'system';
+const savedSidebar  = localStorage.getItem('sidebar-expanded') === 'true';
+const savedFilter   = localStorage.getItem('filter-panel-visible') !== 'false';
+const savedCardSize = (localStorage.getItem('card-size') as CardSize)          ?? 'M';
 const initialResolved = applyTheme(savedMode);
 
 export const useThemeStore = create<ThemeStore>((set) => ({
@@ -47,6 +57,7 @@ export const useThemeStore = create<ThemeStore>((set) => ({
   sidebarExpanded: savedSidebar,
   filterPanelVisible: savedFilter,
   resolvedTheme: initialResolved,
+  cardSize: savedCardSize,
 
   setMode: (mode) => {
     localStorage.setItem('theme-mode', mode);
@@ -73,6 +84,11 @@ export const useThemeStore = create<ThemeStore>((set) => ({
       localStorage.setItem('filter-panel-visible', String(visible));
       return { filterPanelVisible: visible };
     });
+  },
+
+  setCardSize: (size) => {
+    localStorage.setItem('card-size', size);
+    set({ cardSize: size });
   },
 }));
 

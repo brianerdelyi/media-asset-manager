@@ -1,4 +1,5 @@
 // Library store — manages asset search results, filters, selected asset, asset names, and metadata.
+// Uses infinite scroll: results are appended as the user scrolls, not replaced.
 
 import { create } from 'zustand';
 import type { AssetDetail, AssetSearchFilters, AssetSearchResult, AssetSort, AssetSummary } from '../types/asset';
@@ -10,7 +11,9 @@ interface LibraryStore {
   total: number;
   page: number;
   pageSize: number;
+  hasMore: boolean;
   loading: boolean;
+  loadingMore: boolean;
   error: string | null;
   filters: AssetSearchFilters;
   sort: AssetSort;
@@ -19,10 +22,10 @@ interface LibraryStore {
   assetNames: Record<string, string>;
   assetMetadata: Record<string, AssetMetadataEntry>;
 
-  search: () => Promise<void>;
+  search: () => Promise<void>;           // fresh search — resets results
+  loadMore: () => Promise<void>;         // append next page
   setFilters: (filters: Partial<AssetSearchFilters>) => void;
   setSort: (sort: AssetSort) => void;
-  setPage: (page: number) => void;
   selectAsset: (assetId: string) => Promise<void>;
   clearSelection: () => void;
   removeAsset: (assetId: string) => Promise<void>;
@@ -37,7 +40,9 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
   total: 0,
   page: 1,
   pageSize: 50,
+  hasMore: false,
   loading: false,
+  loadingMore: false,
   error: null,
   filters: {},
   sort: DEFAULT_SORT,
@@ -46,13 +51,19 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
   assetNames: {},
   assetMetadata: {},
 
+  // Fresh search — resets to page 1 and replaces results
   search: async () => {
-    const { filters, sort, page, pageSize } = get();
-    set({ loading: true, error: null });
+    const { filters, sort, pageSize } = get();
+    set({ loading: true, error: null, page: 1, results: [] });
     try {
-      const result: AssetSearchResult = await searchAssets(filters, sort, page, pageSize);
-      set({ results: result.data, total: result.total, loading: false });
-      // Load name and metadata overrides in parallel — non-blocking
+      const result: AssetSearchResult = await searchAssets(filters, sort, 1, pageSize);
+      set({
+        results: result.data,
+        total: result.total,
+        page: 1,
+        hasMore: result.data.length < result.total,
+        loading: false,
+      });
       getAssetNames().then(names => set({ assetNames: names })).catch(() => {});
       getAssetMetadata().then(metadata => set({ assetMetadata: metadata })).catch(() => {});
     } catch (e) {
@@ -60,13 +71,34 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
     }
   },
 
+  // Load next page — append to existing results
+  loadMore: async () => {
+    const { filters, sort, page, pageSize, hasMore, loadingMore, loading } = get();
+    if (!hasMore || loadingMore || loading) return;
+    const nextPage = page + 1;
+    set({ loadingMore: true });
+    try {
+      const result: AssetSearchResult = await searchAssets(filters, sort, nextPage, pageSize);
+      set(state => ({
+        results: [...state.results, ...result.data],
+        page: nextPage,
+        hasMore: state.results.length + result.data.length < result.total,
+        loadingMore: false,
+      }));
+    } catch (_) {
+      set({ loadingMore: false });
+    }
+  },
+
   setFilters: (newFilters) => {
-    set(state => ({ filters: { ...state.filters, ...newFilters }, page: 1 }));
+    set(state => ({ filters: { ...state.filters, ...newFilters } }));
     get().search();
   },
 
-  setSort: (sort) => { set({ sort, page: 1 }); get().search(); },
-  setPage: (page) => { set({ page }); get().search(); },
+  setSort: (sort) => {
+    set({ sort });
+    get().search();
+  },
 
   selectAsset: async (assetId) => {
     set({ detailLoading: true });
