@@ -44,7 +44,6 @@
 
     .container { max-width: 880px; margin: 0 auto; padding: 0 24px; }
 
-    /* ── Nav ── */
     nav {
       position: sticky; top: 0; z-index: 10;
       background: rgba(10,10,10,0.85);
@@ -64,7 +63,6 @@
     nav .links a { color: var(--muted); transition: color 0.15s; }
     nav .links a:hover { color: var(--text); text-decoration: none; }
 
-    /* ── Hero ── */
     .hero { padding: 96px 0 72px; text-align: center; }
     .hero .badge {
       display: inline-block;
@@ -86,7 +84,6 @@
     }
     .hero .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
-    /* ── Stack pills under hero ── */
     .stack-pills {
       display: flex; flex-wrap: wrap; gap: 8px;
       justify-content: center; margin-top: 40px;
@@ -101,7 +98,6 @@
     }
     .stack-pill-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 
-    /* ── Buttons ── */
     .btn {
       display: inline-flex; align-items: center; gap: 8px;
       padding: 12px 24px; border-radius: 10px;
@@ -113,11 +109,6 @@
     .btn-primary { background: var(--accent); color: #fff; }
     .btn-secondary { background: var(--raised); color: var(--text); border: 1px solid var(--border); }
 
-    /* ── App icon ── */
-    .icon-wrap { display: flex; justify-content: center; margin: 0 0 56px; }
-    .app-icon { width: 120px; height: 120px; border-radius: 28px; box-shadow: 0 24px 64px rgba(0,0,0,0.6); }
-
-    /* ── Window mockup ── */
     .window-wrap {
       margin: 0 0 96px;
       border-radius: 16px; border: 1px solid var(--border);
@@ -139,10 +130,7 @@
       display: flex; flex-direction: column; align-items: center;
       padding: 12px 0; gap: 4px;
     }
-    .win-nav-item {
-      width: 36px; height: 36px; border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-    }
+    .win-nav-item { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
     .win-nav-item.active { background: var(--accent); }
     .win-nav-icon { width: 18px; height: 18px; opacity: 0.5; }
     .win-nav-item.active .win-nav-icon { opacity: 1; }
@@ -153,14 +141,11 @@
     .win-sort { width: 90px; height: 28px; background: #1c1c1c; border: 1px solid var(--border); border-radius: 6px; }
     .win-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
     .win-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-    .win-thumb { aspect-ratio: 16/9; background: #1a1a1a; position: relative; }
+    .win-thumb { aspect-ratio: 16/9; background: #1a1a1a; }
     .win-card-info { padding: 6px 8px; }
     .win-card-name { height: 8px; background: #333; border-radius: 4px; margin-bottom: 5px; }
     .win-card-meta { height: 6px; background: #222; border-radius: 4px; width: 60%; }
-    .win-detail {
-      width: 220px; flex-shrink: 0; border-left: 1px solid var(--border);
-      padding: 14px; display: flex; flex-direction: column; gap: 14px;
-    }
+    .win-detail { width: 220px; flex-shrink: 0; border-left: 1px solid var(--border); padding: 14px; display: flex; flex-direction: column; gap: 14px; }
     .win-detail-label { font-size: 9px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 5px; }
     .win-meta-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
     .win-meta-key { height: 6px; background: #222; border-radius: 3px; width: 40%; }
@@ -171,104 +156,43 @@
     .win-transcript-line { height: 6px; background: #1c1c1c; border-radius: 3px; margin-bottom: 5px; }
     .win-transcript-ts { width: 28px; height: 6px; background: rgba(10,132,255,0.3); border-radius: 3px; flex-shrink: 0; }
 
-    /* ── Callout stat row ── */
-    .stats-row {
-      display: grid; grid-template-columns: repeat(3, 1fr);
-      gap: 16px; margin: 56px 0 0;
-    }
-    .stat-card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 24px; text-align: center;
-    }
-    .stat-number { font-size: 32px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 6px; }
-    .stat-label { font-size: 13px; color: var(--muted); }
-
-    /* ── Features ── */
     .section { padding: 80px 0; }
     .section-label { font-size: 12px; font-weight: 500; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
     .section-title { font-size: clamp(28px, 4vw, 40px); font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 16px; }
     .section-body { font-size: 17px; color: var(--muted); max-width: 560px; line-height: 1.7; }
 
-    .features-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 16px; margin-top: 56px;
-    }
-    .feature-card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 24px;
-    }
-    .feature-card.highlight {
-      border-color: rgba(10,132,255,0.3);
-      background: linear-gradient(135deg, #141414 0%, #0d1a2a 100%);
-    }
-    .feature-icon {
-      width: 40px; height: 40px; border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      margin-bottom: 16px;
-    }
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-top: 56px; }
+    .feature-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+    .feature-card.highlight { border-color: rgba(10,132,255,0.3); background: linear-gradient(135deg, #141414 0%, #0d1a2a 100%); }
+    .feature-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
     .feature-title { font-size: 15px; font-weight: 500; margin-bottom: 8px; }
-    .feature-badge {
-      display: inline-block; font-size: 10px; font-weight: 500;
-      background: rgba(10,132,255,0.15); color: var(--accent);
-      border-radius: 4px; padding: 2px 7px; margin-left: 6px;
-      vertical-align: middle;
-    }
+    .feature-badge { display: inline-block; font-size: 10px; font-weight: 500; background: rgba(10,132,255,0.15); color: var(--accent); border-radius: 4px; padding: 2px 7px; margin-left: 6px; vertical-align: middle; }
     .feature-desc { font-size: 14px; color: var(--muted); line-height: 1.6; }
 
-    /* ── Stack section ── */
-    .stack-full-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-      gap: 12px; margin-top: 40px;
-    }
-    .stack-item {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 10px; padding: 16px;
-      display: flex; align-items: center; gap: 12px;
-    }
+    .stack-full-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-top: 40px; }
+    .stack-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; display: flex; align-items: center; gap: 12px; }
     .stack-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .stack-name { font-size: 14px; font-weight: 500; }
     .stack-ver { font-size: 12px; color: var(--muted); font-family: var(--mono); }
 
-    /* ── Stack callout ── */
-    .stack-callout {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 28px 32px;
-      margin-top: 32px;
-      display: flex; gap: 32px; flex-wrap: wrap; align-items: center;
-    }
+    .stack-callout { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 32px; margin-top: 32px; display: flex; gap: 32px; flex-wrap: wrap; align-items: center; }
     .stack-callout-item { display: flex; flex-direction: column; gap: 4px; }
     .stack-callout-value { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
     .stack-callout-label { font-size: 13px; color: var(--muted); }
     .stack-divider { width: 1px; background: var(--border); align-self: stretch; }
 
-    /* ── Release ── */
-    .release-card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 32px;
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 24px; flex-wrap: wrap;
-    }
+    .release-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
     .release-version { font-size: 13px; color: var(--muted); font-family: var(--mono); margin-bottom: 6px; }
     .release-title { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
     .release-meta { font-size: 14px; color: var(--muted); }
-    .release-tag {
-      display: inline-block; font-size: 11px; font-weight: 500;
-      background: rgba(48,209,88,0.12); color: var(--green);
-      border: 1px solid rgba(48,209,88,0.25);
-      border-radius: 999px; padding: 3px 10px; margin-left: 8px;
-    }
+    .release-tag { display: inline-block; font-size: 11px; font-weight: 500; background: rgba(48,209,88,0.12); color: var(--green); border: 1px solid rgba(48,209,88,0.25); border-radius: 999px; padding: 3px 10px; margin-left: 8px; }
 
-    /* ── Footer ── */
-    footer {
-      border-top: 1px solid var(--border); padding: 40px 0;
-      text-align: center; font-size: 14px; color: var(--faint);
-    }
+    footer { border-top: 1px solid var(--border); padding: 40px 0; text-align: center; font-size: 14px; color: var(--faint); }
     footer a { color: var(--muted); }
 
     hr { border: none; border-top: 1px solid var(--border); }
 
     @media (max-width: 600px) {
-      .stats-row { grid-template-columns: 1fr; }
       .stack-callout { flex-direction: column; gap: 16px; }
       .stack-divider { display: none; }
     }
@@ -276,7 +200,6 @@
 </head>
 <body>
 
-<!-- Nav -->
 <nav>
   <div class="inner">
     <div class="logo">
@@ -297,7 +220,6 @@
   </div>
 </nav>
 
-<!-- Hero -->
 <section class="hero">
   <div class="container">
     <div class="badge">v0.9.1 Preview · macOS ARM64</div>
@@ -313,8 +235,6 @@
         View on GitHub
       </a>
     </div>
-
-    <!-- Stack pills -->
     <div class="stack-pills">
       <div class="stack-pill"><div class="stack-pill-dot" style="background:#FF5733;"></div>Rust</div>
       <div class="stack-pill"><div class="stack-pill-dot" style="background:#0A84FF;"></div>Tauri 2</div>
@@ -327,17 +247,6 @@
   </div>
 </section>
 
-<!-- App icon -->
-<div class="icon-wrap">
-  <svg class="app-icon" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
-    <rect width="120" height="120" rx="26" fill="#141820"/>
-    <rect x="18" y="31" width="72" height="45" rx="8" fill="#30D158" opacity="0.35"/>
-    <rect x="24" y="38" width="72" height="45" rx="8" fill="#BF5AF2" opacity="0.65"/>
-    <rect x="30" y="44" width="72" height="45" rx="8" fill="#0A84FF"/>
-  </svg>
-</div>
-
-<!-- Window mockup -->
 <div class="container">
   <div class="window-wrap">
     <div class="window-bar">
@@ -406,51 +315,33 @@
   </div>
 </div>
 
-<!-- Features -->
 <section class="section" id="features">
   <div class="container">
     <div class="section-label">Features</div>
     <h2 class="section-title">Professional tools.<br>Zero complexity.</h2>
     <p class="section-body">Built for videographers and media professionals who work with large libraries across multiple removable drives.</p>
-
     <div class="features-grid">
-
-      <!-- Standout: Transcription -->
       <div class="feature-card highlight">
         <div class="feature-icon" style="background:rgba(10,132,255,0.15);">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0A84FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
         </div>
-        <div class="feature-title">
-          Local speech-to-text
-          <span class="feature-badge">New</span>
-        </div>
+        <div class="feature-title">Local speech-to-text <span class="feature-badge">New</span></div>
         <div class="feature-desc">Transcribe your footage directly on device using whisper.cpp with Metal GPU acceleration. Timestamped segments are stored locally and searchable — click any line to jump to that moment in the video. No data leaves your machine.</div>
       </div>
-
-      <!-- Standout: Lossless clip export -->
       <div class="feature-card highlight">
         <div class="feature-icon" style="background:rgba(48,209,88,0.12);">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#30D158" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         </div>
-        <div class="feature-title">
-          Lossless clip export
-          <span class="feature-badge">Standout</span>
-        </div>
+        <div class="feature-title">Lossless clip export <span class="feature-badge">Standout</span></div>
         <div class="feature-desc">Set In and Out points on any video, then export the clip with zero re-encoding using FFmpeg stream copy. Your footage stays at original quality — no compression artifacts, no waiting for a transcode.</div>
       </div>
-
-      <!-- Standout: Keyword auto-marking -->
       <div class="feature-card highlight">
         <div class="feature-icon" style="background:rgba(255,159,10,0.12);">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF9F0A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
         </div>
-        <div class="feature-title">
-          Keyword auto-marking
-          <span class="feature-badge">New</span>
-        </div>
+        <div class="feature-title">Keyword auto-marking <span class="feature-badge">New</span></div>
         <div class="feature-desc">Say a keyword phrase while recording — like "mark video" — and after transcription the app automatically creates a marker at that exact timestamp. Define your phrase once in Settings, mark as many moments as you need while filming.</div>
       </div>
-
       <div class="feature-card">
         <div class="feature-icon" style="background:rgba(10,132,255,0.12);">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0A84FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -458,7 +349,6 @@
         <div class="feature-title">Full-text search</div>
         <div class="feature-desc">Search filenames, tags, descriptions, and transcript content from a single search bar. Results update instantly across your entire library.</div>
       </div>
-
       <div class="feature-card">
         <div class="feature-icon" style="background:rgba(48,209,88,0.12);">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#30D158" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M12 12h.01"/></svg>
@@ -466,7 +356,6 @@
         <div class="feature-title">Drive management</div>
         <div class="feature-desc">Register any external drive or folder. Online and offline status is detected automatically when you connect or disconnect drives.</div>
       </div>
-
       <div class="feature-card">
         <div class="feature-icon" style="background:rgba(191,90,242,0.12);">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#BF5AF2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
@@ -474,7 +363,6 @@
         <div class="feature-title">Inline video playback</div>
         <div class="feature-desc">Preview footage directly in the app. Scrub the timeline, jump to any marker, and review clips without opening an external player.</div>
       </div>
-
       <div class="feature-card">
         <div class="feature-icon" style="background:rgba(255,159,10,0.12);">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF9F0A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -482,7 +370,6 @@
         <div class="feature-title">Markers &amp; tags</div>
         <div class="feature-desc">Add point and range markers with names to any asset. Tag assets for cross-drive filtering. Add descriptions and locations for richer search.</div>
       </div>
-
       <div class="feature-card">
         <div class="feature-icon" style="background:rgba(10,132,255,0.12);">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0A84FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
@@ -490,7 +377,6 @@
         <div class="feature-title">Local-first &amp; private</div>
         <div class="feature-desc">SQLite database stored on your Mac. No accounts, no cloud sync, no telemetry. Your footage and transcripts never leave your machine.</div>
       </div>
-
       <div class="feature-card">
         <div class="feature-icon" style="background:rgba(48,209,88,0.12);">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#30D158" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
@@ -498,21 +384,17 @@
         <div class="feature-title">Light &amp; dark mode</div>
         <div class="feature-desc">Follows your macOS system appearance automatically. Override to light or dark in Settings.</div>
       </div>
-
     </div>
   </div>
 </section>
 
 <hr>
 
-<!-- Stack -->
 <section class="section" id="stack">
   <div class="container">
     <div class="section-label">Built with</div>
     <h2 class="section-title">Small binary.<br>Fast startup.</h2>
     <p class="section-body">Tauri uses the system WebView instead of bundling Chromium — the result is a native-feeling app that launches in under a second and installs in under 10 MB. Rust handles all performance-critical work: indexing, thumbnails, transcription, and database I/O.</p>
-
-    <!-- Callout stats -->
     <div class="stack-callout">
       <div class="stack-callout-item">
         <div class="stack-callout-value" style="color:var(--accent);">&lt; 10 MB</div>
@@ -534,64 +416,31 @@
         <div class="stack-callout-label">whisper.cpp transcription</div>
       </div>
     </div>
-
     <div class="stack-full-grid" style="margin-top:32px;">
-      <div class="stack-item">
-        <div class="stack-dot" style="background:#FF5733;"></div>
-        <div><div class="stack-name">Rust</div><div class="stack-ver">v1.95</div></div>
-      </div>
-      <div class="stack-item">
-        <div class="stack-dot" style="background:#0A84FF;"></div>
-        <div><div class="stack-name">Tauri 2</div><div class="stack-ver">v2.11</div></div>
-      </div>
-      <div class="stack-item">
-        <div class="stack-dot" style="background:#61DAFB;"></div>
-        <div><div class="stack-name">React 19</div><div class="stack-ver">v19.1</div></div>
-      </div>
-      <div class="stack-item">
-        <div class="stack-dot" style="background:#3178C6;"></div>
-        <div><div class="stack-name">TypeScript</div><div class="stack-ver">v5.8</div></div>
-      </div>
-      <div class="stack-item">
-        <div class="stack-dot" style="background:#30D158;"></div>
-        <div><div class="stack-name">SQLite</div><div class="stack-ver">WAL mode</div></div>
-      </div>
-      <div class="stack-item">
-        <div class="stack-dot" style="background:#FF9F0A;"></div>
-        <div><div class="stack-name">FFmpeg</div><div class="stack-ver">v8.1</div></div>
-      </div>
-      <div class="stack-item">
-        <div class="stack-dot" style="background:#8E8E93;"></div>
-        <div><div class="stack-name">whisper.cpp</div><div class="stack-ver">v1.8.4</div></div>
-      </div>
-      <div class="stack-item">
-        <div class="stack-dot" style="background:#646CFF;"></div>
-        <div><div class="stack-name">Vite 7</div><div class="stack-ver">v7.0</div></div>
-      </div>
-      <div class="stack-item">
-        <div class="stack-dot" style="background:#BF5AF2;"></div>
-        <div><div class="stack-name">Zustand 5</div><div class="stack-ver">v5.0</div></div>
-      </div>
+      <div class="stack-item"><div class="stack-dot" style="background:#FF5733;"></div><div><div class="stack-name">Rust</div><div class="stack-ver">v1.95</div></div></div>
+      <div class="stack-item"><div class="stack-dot" style="background:#0A84FF;"></div><div><div class="stack-name">Tauri 2</div><div class="stack-ver">v2.11</div></div></div>
+      <div class="stack-item"><div class="stack-dot" style="background:#61DAFB;"></div><div><div class="stack-name">React 19</div><div class="stack-ver">v19.1</div></div></div>
+      <div class="stack-item"><div class="stack-dot" style="background:#3178C6;"></div><div><div class="stack-name">TypeScript</div><div class="stack-ver">v5.8</div></div></div>
+      <div class="stack-item"><div class="stack-dot" style="background:#30D158;"></div><div><div class="stack-name">SQLite</div><div class="stack-ver">WAL mode</div></div></div>
+      <div class="stack-item"><div class="stack-dot" style="background:#FF9F0A;"></div><div><div class="stack-name">FFmpeg</div><div class="stack-ver">v8.1</div></div></div>
+      <div class="stack-item"><div class="stack-dot" style="background:#8E8E93;"></div><div><div class="stack-name">whisper.cpp</div><div class="stack-ver">v1.8.4</div></div></div>
+      <div class="stack-item"><div class="stack-dot" style="background:#646CFF;"></div><div><div class="stack-name">Vite 7</div><div class="stack-ver">v7.0</div></div></div>
+      <div class="stack-item"><div class="stack-dot" style="background:#BF5AF2;"></div><div><div class="stack-name">Zustand 5</div><div class="stack-ver">v5.0</div></div></div>
     </div>
   </div>
 </section>
 
 <hr>
 
-<!-- Release -->
 <section class="section" id="release">
   <div class="container">
     <div class="section-label">Download</div>
     <h2 class="section-title">Preview release.</h2>
     <p class="section-body" style="margin-bottom:40px;">Requires macOS on Apple Silicon (M1 or later). FFmpeg and whisper-cpp must be installed via Homebrew for transcription features.</p>
-
     <div class="release-card">
       <div>
         <div class="release-version">com.brianerdelyi.mediaassetmanager</div>
-        <div class="release-title">
-          Media Asset Manager
-          <span class="release-tag">Preview</span>
-        </div>
+        <div class="release-title">Media Asset Manager <span class="release-tag">Preview</span></div>
         <div class="release-meta">v0.9.1 · macOS ARM64 · 2026-05-23</div>
         <div style="margin-top:12px;font-size:13px;color:var(--faint);line-height:1.8;">
           Requires: macOS 12+ · Apple Silicon<br>
@@ -609,11 +458,9 @@
   </div>
 </section>
 
-<!-- Footer -->
 <footer>
   <div class="container">
     <p>Media Asset Manager · Built by <a href="https://github.com/brianerdelyi" target="_blank">Brian Erdelyi</a> · <a href="https://github.com/brianerdelyi/media-asset-manager" target="_blank">GitHub</a></p>
-    <p style="margin-top:8px;">Tauri · React · Rust · SQLite · whisper.cpp · FFmpeg</p>
   </div>
 </footer>
 
