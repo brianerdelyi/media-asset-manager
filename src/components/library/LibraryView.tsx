@@ -1,9 +1,9 @@
-// Main library view — infinite scroll asset grid with size control and filters.
+// Main library view — infinite scroll asset grid with slider size control and filters.
 
 import { useEffect, useRef } from 'react';
 import { SlidersHorizontal } from 'lucide-react';
 import { useLibraryStore } from '../../stores/libraryStore';
-import { useThemeStore, type CardSize, CARD_SIZE_PX } from '../../stores/themeStore';
+import { useThemeStore, CARD_SIZE_MIN, CARD_SIZE_MAX } from '../../stores/themeStore';
 import { useTranscriptionStore } from '../../stores/transcriptionStore';
 import { useIndexingStore } from '../../stores/indexingStore';
 import { AssetCard } from './AssetCard';
@@ -28,7 +28,6 @@ const CTRL_BASE: React.CSSProperties = {
 };
 
 const STATUS_BAR_HEIGHT = 28;
-const SIZE_LABELS: CardSize[] = ['S', 'M', 'L'];
 
 export function LibraryView() {
   const {
@@ -45,9 +44,11 @@ export function LibraryView() {
   const statusBarHeight = statusBarRows > 0 ? statusBarRows * STATUS_BAR_HEIGHT : 0;
 
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { search(); }, []);
 
+  // Infinite scroll — load next page when sentinel enters viewport
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
@@ -58,6 +59,21 @@ export function LibraryView() {
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [loadMore, results.length]);
+
+  // Pinch-to-zoom on trackpad — ctrl+wheel adjusts card size
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    function handleWheel(e: WheelEvent) {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      // deltaY is negative when pinching out (zoom in = larger cards)
+      const delta = -e.deltaY * 0.5;
+      setCardSize(useThemeStore.getState().cardSize + delta);
+    }
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, []);
 
   const activeFilterCount = [
     filters.media_types?.length ?? 0,
@@ -99,8 +115,6 @@ export function LibraryView() {
     );
   }
 
-  const minCardPx = CARD_SIZE_PX[cardSize];
-
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden', paddingBottom: statusBarHeight, boxSizing: 'border-box' }}>
 
@@ -128,6 +142,7 @@ export function LibraryView() {
           borderBottom: '1px solid var(--border-subtle)',
           flexShrink: 0,
         }}>
+
           {/* Filters button */}
           <div style={{
             ...CTRL_BASE, width: '108px', flexShrink: 0,
@@ -136,7 +151,8 @@ export function LibraryView() {
             borderColor: filterPanelVisible ? 'rgba(10,132,255,0.3)' : 'var(--border-default)',
             color: filterPanelVisible ? 'var(--color-accent)' : 'var(--text-secondary)',
           }}>
-            <button onClick={toggleFilterPanel} title={filterPanelVisible ? 'Hide filters' : 'Show filters'}
+            <button onClick={toggleFilterPanel}
+              title={filterPanelVisible ? 'Hide filters' : 'Show filters'}
               style={{ flex: 1, height: '100%', display: 'flex', alignItems: 'center', gap: '5px', padding: '0 8px', background: 'none', border: 'none', borderRight: hasFilters ? '1px solid var(--border-subtle)' : 'none', color: 'inherit', cursor: 'pointer', fontSize: '12px' }}>
               <SlidersHorizontal size={13} />
               <span>Filters</span>
@@ -163,25 +179,21 @@ export function LibraryView() {
           {/* Sort */}
           <SortDropdown options={sortOptions} value={sort} onChange={setSort} serialize={v => JSON.stringify(v)} />
 
-          {/* Card size — S / M / L segmented control */}
-          <div style={{ display: 'flex', height: '28px', flexShrink: 0, border: '1px solid var(--border-default)', borderRadius: '6px', overflow: 'hidden' }}>
-            {SIZE_LABELS.map((s, i) => (
-              <button key={s} onClick={() => setCardSize(s)}
-                title={{ S: 'Small cards', M: 'Medium cards', L: 'Large cards' }[s]}
-                style={{
-                  width: '28px', height: '100%',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: cardSize === s ? 'var(--color-accent)' : 'var(--bg-raised)',
-                  color: cardSize === s ? '#fff' : 'var(--text-tertiary)',
-                  border: 'none',
-                  borderLeft: i > 0 ? '1px solid var(--border-default)' : 'none',
-                  cursor: 'pointer', fontSize: '11px', fontWeight: 500,
-                }}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+          {/* Card size slider */}
+          <input
+            type="range"
+            min={CARD_SIZE_MIN}
+            max={CARD_SIZE_MAX}
+            step={1}
+            value={cardSize}
+            onChange={e => setCardSize(Number(e.target.value))}
+            title={`Card size (${cardSize}px)`}
+            style={{
+              width: '80px', flexShrink: 0,
+              height: '3px', cursor: 'pointer',
+              accentColor: 'var(--color-accent)',
+            }}
+          />
 
           {/* Asset count */}
           <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', whiteSpace: 'nowrap', flexShrink: 0 }}>
@@ -190,7 +202,7 @@ export function LibraryView() {
         </div>
 
         {/* Grid — infinite scroll */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+        <div ref={gridRef} style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
           {error && (
             <div style={{ background: 'rgba(255,69,58,0.1)', border: '1px solid rgba(255,69,58,0.3)', borderRadius: '6px', padding: '10px 14px', marginBottom: '16px', fontSize: '13px', color: 'var(--color-danger)' }}>
               {error}
@@ -213,16 +225,22 @@ export function LibraryView() {
           {results.length > 0 && (
             <div style={{
               display: 'grid',
-              gridTemplateColumns: `repeat(auto-fill, minmax(${minCardPx}px, 1fr))`,
+              gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize}px, 1fr))`,
               gap: '12px',
             }}>
               {results.map(asset => (
-                <AssetCard key={asset.id} asset={asset} cardSize={cardSize} isSelected={false} onClick={() => selectAsset(asset.id)} />
+                <AssetCard
+                  key={asset.id}
+                  asset={asset}
+                  cardSize={cardSize}
+                  isSelected={false}
+                  onClick={() => selectAsset(asset.id)}
+                />
               ))}
             </div>
           )}
 
-          {/* Scroll sentinel */}
+          {/* Scroll sentinel — triggers loadMore */}
           <div ref={sentinelRef} style={{ height: '1px' }} />
 
           {loadingMore && (
@@ -240,6 +258,14 @@ export function LibraryView() {
           )}
         </div>
       </div>
+
+      {/* Slider track styling */}
+      <style>{`
+        input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 3px; background: var(--border-default); border-radius: 2px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%; background: var(--color-accent); margin-top: -5px; cursor: pointer; }
+        input[type=range]:hover::-webkit-slider-thumb { background: var(--color-accent); opacity: 0.85; }
+      `}</style>
     </div>
   );
 }

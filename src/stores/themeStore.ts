@@ -3,25 +3,22 @@
 import { create } from 'zustand';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
-export type CardSize = 'S' | 'M' | 'L';
 
-export const CARD_SIZE_PX: Record<CardSize, number> = {
-  S: 150,
-  M: 200,
-  L: 270,
-};
+export const CARD_SIZE_MIN = 120;
+export const CARD_SIZE_MAX = 300;
+export const CARD_SIZE_DEFAULT = 180;
 
 interface ThemeStore {
   mode: ThemeMode;
   sidebarExpanded: boolean;
   filterPanelVisible: boolean;
   resolvedTheme: 'light' | 'dark';
-  cardSize: CardSize;
+  cardSize: number;
   setMode: (mode: ThemeMode) => void;
   toggleSidebar: () => void;
   setSidebarExpanded: (expanded: boolean) => void;
   toggleFilterPanel: () => void;
-  setCardSize: (size: CardSize) => void;
+  setCardSize: (size: number) => void;
 }
 
 function getSystemTheme(): 'light' | 'dark' {
@@ -46,10 +43,10 @@ function applyTheme(mode: ThemeMode) {
   return resolved;
 }
 
-const savedMode     = (localStorage.getItem('theme-mode') as ThemeMode)       ?? 'system';
+const savedMode     = (localStorage.getItem('theme-mode') as ThemeMode) ?? 'system';
 const savedSidebar  = localStorage.getItem('sidebar-expanded') === 'true';
 const savedFilter   = localStorage.getItem('filter-panel-visible') !== 'false';
-const savedCardSize = (localStorage.getItem('card-size') as CardSize)          ?? 'M';
+const savedCardSize = parseInt(localStorage.getItem('card-size') ?? String(CARD_SIZE_DEFAULT), 10);
 const initialResolved = applyTheme(savedMode);
 
 export const useThemeStore = create<ThemeStore>((set) => ({
@@ -87,8 +84,9 @@ export const useThemeStore = create<ThemeStore>((set) => ({
   },
 
   setCardSize: (size) => {
-    localStorage.setItem('card-size', size);
-    set({ cardSize: size });
+    const clamped = Math.max(CARD_SIZE_MIN, Math.min(CARD_SIZE_MAX, size));
+    localStorage.setItem('card-size', String(clamped));
+    set({ cardSize: clamped });
   },
 }));
 
